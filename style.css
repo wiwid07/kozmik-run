@@ -15,7 +15,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;ma
 .mute:hover{border-color:#d7ff5880}
 .mute.off{color:#8d86a8;border-style:dashed}
 .gamebox{position:relative;border:1px solid #bc9aff55;border-radius:18px;overflow:hidden;box-shadow:0 20px 80px #0008,0 0 32px #9a5cff20;background:#100d20}
-canvas{display:block;width:100%;height:auto;aspect-ratio:900/500;touch-action:none;image-rendering:pixelated;image-rendering:crisp-edges}
+#game{display:block;width:100%;height:auto;aspect-ratio:900/500;touch-action:none;image-rendering:pixelated;image-rendering:crisp-edges}
 .overlay{position:absolute;inset:0;display:grid;place-items:center;padding:20px;background:linear-gradient(90deg,#100d20dc,#100d2055,#100d20dc);text-align:center}
 .overlay.hidden{display:none}
 .card{position:relative;width:min(480px,100%);background:#1a1530ef;border:1px solid #b18aff60;border-radius:20px;padding:26px;box-shadow:0 16px 60px #0008;animation:pop .35s cubic-bezier(.2,1.4,.4,1)}
@@ -72,7 +72,7 @@ canvas{display:block;width:100%;height:auto;aspect-ratio:900/500;touch-action:no
 @media(max-width:650px){
   .bottom{grid-template-columns:minmax(0,1fr)}
   /* en pantallas chicas la tarjeta no cabe sobre el canvas: la tarjeta da el alto y el canvas queda de fondo */
-  .gamebox:has(#overlay:not(.hidden)) canvas{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto;object-fit:cover}
+  .gamebox:has(#overlay:not(.hidden)) canvas#game{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto;object-fit:cover}
   .gamebox:has(#overlay:not(.hidden)) .overlay{position:relative;inset:auto;padding:46px 12px 14px}
   .gamebox:has(#overlay:not(.hidden)) .hud{display:none}
 }
@@ -85,7 +85,79 @@ canvas{display:block;width:100%;height:auto;aspect-ratio:900/500;touch-action:no
 
 /* v1.9: héroe y miniaturas = idle de frente en pixel art (cuadros, sin interpolación ni flotado suave) */
 #overlay{background:linear-gradient(90deg,#100d2078,#100d2048 34%,#100d2055 66%,#100d20c8)} /* v1.9: se ve el idle de frente (sin pantalla negra) */
-canvas.hero{width:100px;height:100px;right:-22px;top:-58px;animation:none;image-rendering:pixelated;image-rendering:crisp-edges}
-.skin canvas.front{width:100%;height:100%;display:block;image-rendering:pixelated}
+canvas.hero{width:104px;height:104px;right:-22px;top:-34px;animation:none;image-rendering:auto}
+.skin canvas.front{width:100%;height:100%;display:block;image-rendering:auto}
 @media(max-width:650px){#overlay{background:linear-gradient(90deg,#100d2078,#100d2048 34%,#100d2055 66%,#100d20c8)} /* v1.9: se ve el idle de frente (sin pantalla negra) */
 canvas.hero{width:76px;height:76px;right:-8px;top:-42px}}
+
+/* v1.9.1: miniaturas más grandes para el arte original + historia de apertura */
+.skin{width:56px;height:56px;padding:2px}
+@media(max-width:650px){.skin{width:46px;height:46px}}
+.storylink{margin-top:10px;min-height:36px;background:none;border:1px solid #ffffff22;color:#d8c8ff;font:700 12px/1 system-ui,sans-serif;padding:6px 12px;border-radius:999px;cursor:pointer}
+.storylink:hover{border-color:#b386ff99;color:#fff}
+.story{position:absolute;inset:0;z-index:6;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 45%,#2a145099 0%,#140a2ad9 70%);padding:18px;cursor:pointer}
+.story.hidden{display:none}
+.storybox{max-width:560px;width:100%;text-align:left;background:#140c28e6;border:1px solid #9a5cff55;border-radius:18px;padding:22px 26px 18px;box-shadow:0 10px 40px #0008,0 0 24px #9a5cff33}
+.storytitle{font:900 13px/1 system-ui,sans-serif;letter-spacing:.14em;color:#ff9b42;margin-bottom:12px}
+.storytext{min-height:150px;color:#efe6ff;font:600 17px/1.45 system-ui,sans-serif}
+.storytext p{margin:0 0 8px}
+.storytext .caret{color:#b386ff;animation:blinkc .8s steps(1) infinite}
+@keyframes blinkc{50%{opacity:0}}
+.storyskip{margin-top:10px;float:right;padding:9px 18px}
+.storybroom{width:192px;height:60px;margin:0 auto 6px;background:url(assets/broom_32bit.png) 0 0/768px 60px no-repeat;image-rendering:pixelated;animation:sbroom .55s steps(1) infinite,sbob 1.6s steps(4) infinite}
+@keyframes sbroom{0%{background-position:0 0}25%{background-position:-192px 0}50%{background-position:-384px 0}75%{background-position:-576px 0}}
+@keyframes sbob{0%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@media(max-width:650px){.storytext{font-size:15px;min-height:170px}.storybox{padding:16px 18px 14px}}
+
+/* ---------- v1.9.1: móvil ---------- */
+html,body{overscroll-behavior:none;-webkit-text-size-adjust:100%}
+body{touch-action:manipulation;-webkit-tap-highlight-color:transparent;padding:max(20px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
+.gamebox,.gamebox canvas,.boost{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.gamebox canvas,.boost{touch-action:none}
+.loadbar{position:relative;height:18px;margin:10px auto 0;max-width:260px;border-radius:9px;background:#ffffff10;overflow:hidden;font:700 11px/18px system-ui,sans-serif;color:#d8c8ff}
+.loadbar i{position:absolute;left:0;top:0;bottom:0;width:var(--p,0%);background:linear-gradient(90deg,#5a4cff,#b06cff);opacity:.55;transition:width .2s}
+.loadbar span{position:relative}
+.loadbar.done{display:none}
+.ministats,.mmute{display:none}
+.rotate{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:#0d0a19e6;padding:24px;text-align:center}
+.rotate.hidden{display:none}
+.rotbox{max-width:300px;background:#1a1530f2;border:1px solid #b18aff60;border-radius:18px;padding:22px}
+.rotbox p{font:900 20px/1.2 system-ui,sans-serif;margin:8px 0 4px}
+.rotbox small{display:block;color:var(--muted);margin-bottom:16px}
+.rotico{font-size:44px;display:inline-block;animation:rot 2.4s steps(1) infinite}
+@keyframes rot{0%,40%{transform:rotate(0)}50%,90%{transform:rotate(-90deg)}}
+@media(pointer:coarse){.btn{min-height:46px}.pill.mute{min-height:44px}.skin{min-width:48px;min-height:48px}.storylink{min-height:44px;padding:8px 16px}.storyskip{min-height:46px}}
+/* teléfono: el juego ajustado a la pantalla (franjas si sobra), respetando notch y barra de inicio */
+body.fit{overflow:hidden;position:fixed;inset:0;padding:0}
+body.fit .gamebox{position:fixed;z-index:40;border-radius:10px;border:0;margin:0}
+body.fit .gamebox canvas#game{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto}
+body.fit .gamebox .overlay{position:absolute;inset:0;padding:8px}
+body.fit .hud{inset:8px 10px auto}
+body.fit .hud strong{font-size:15px}
+body.fit.portrait .boost{width:58px;height:58px;font-size:13px;right:8px;bottom:8px}
+body.fit.portrait .boost span{display:none}
+/* horizontal en teléfono: tarjeta compacta a la derecha (el personaje se ve a la izquierda) */
+body.compact .overlay .card{width:min(360px,58%);margin:auto 8px auto auto;padding:12px 14px 10px;max-height:100%;overflow:auto}
+body.compact .eyebrow,body.compact #message,body.compact #hint,body.compact canvas.hero{display:none}
+body.compact .card h1{font-size:26px;margin:2px 0 8px}
+body.compact .card h1 br{display:none}
+body.compact .ministats{display:block;font-size:11px;color:#d8d0ee;margin:0 34px 4px}
+body.compact .ministats b{color:var(--lime)}
+body.compact .mmute{display:grid;place-items:center;position:absolute;right:6px;top:6px;width:44px;height:44px;border-radius:12px;border:1px solid #ffffff22;background:#ffffff10;color:#fff;font-size:18px}
+body.compact .actions{gap:8px;flex-wrap:nowrap}
+body.compact .actions .btn{min-width:0;flex:1;padding:10px 8px;font-size:14px}
+body.compact .skinpick{margin-top:8px}
+body.compact .skinlabel{margin-bottom:4px}
+body.compact .storylink{margin-top:6px}
+body.compact .boost{width:70px;height:70px;right:10px;bottom:10px}
+body.fit .story{padding:8px}
+body.fit .storybox{max-height:100%;overflow:auto;padding:12px 16px 10px}
+body.fit .storybroom{width:128px;height:40px;background-size:512px 40px;margin-bottom:2px}
+@keyframes sbroomS{0%{background-position:0 0}25%{background-position:-128px 0}50%{background-position:-256px 0}75%{background-position:-384px 0}}
+body.fit .storybroom{animation:sbroomS .55s steps(1) infinite}
+body.fit .storytext{font-size:14px;min-height:0;line-height:1.35}
+body.fit .storytext p{margin:0 0 4px}
+body.fit .storyskip{margin-top:4px}
+html{background:#0d0a19}
+body.fit{background:radial-gradient(ellipse at 50% 40%,#2a1d52 0%,#110d24 60%,#0b0817 100%)}
+body.fit .shell>header,body.fit .shell>.audiobar,body.fit .shell>.bottom,body.fit .shell>.footer{visibility:hidden}

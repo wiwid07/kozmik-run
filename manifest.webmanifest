@@ -1,0 +1,30 @@
+{
+ "name": "KOZMIK RUN — geekz",
+ "short_name": "kozmik run",
+ "description": "desafío arcade diario de geekz · temporada hallogeekz",
+ "lang": "es",
+ "start_url": "./index.html",
+ "scope": "./",
+ "display": "fullscreen",
+ "orientation": "landscape",
+ "background_color": "#110d24",
+ "theme_color": "#110d24",
+ "icons": [
+  {
+   "src": "assets/icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "assets/icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "assets/icon-512-maskable.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}

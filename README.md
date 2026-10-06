@@ -1,4 +1,83 @@
-# KOZMIK RUN — v1.9 hallogeekz · pack gótico 32-bit
+# KOZMIK RUN — v1.9.1 hallogeekz · pack gótico 32-bit
+
+## v1.9.1 — vuelven los personajes originales, escoba sola, historia, oscuridad final, más monedas, móvil
+- **vuelven los 3 personajes originales** (pack gótico 32-bit, de perfil): brujo (sombrero estrellado, báculo con cristal morado y grimorio), hombre lobo (piel de lobo gris con ojo naranja, capa roja rasgada, garras) y vampiro (capucha negra con cruz dorada, joya roja, alas de murciélago, jabot blanco).
+  - el arte sale de los sprites `pack-gotico-32bit/personajes-32bit/*-derecha.png` (iguales byte a byte a los adjuntos que reenvió marcelo, ya con fondo transparente). se pasan a pixel art real, 10 px → 1 px lógico, con 48 colores, y se muestran a ×2 nítido en el menú.
+  - **idle snes en el menú:** animación por partes, a pasos de 1 px, sin sesgo ni interpolación:
+    - todos: respiración de 1 px, parpadeo con párpado dibujado sobre el ojo visible (cada ~3 s, a veces doble), cola que se mece
+    - brujo: punta del sombrero y capa se mecen; el cristal del báculo titila
+    - vampiro: alas que aletean 1 px; capa que se mece
+    - hombre lobo: pelaje que se eriza en el borde; brillo en el ojo naranja
+  - **dónde aparecen:** el canvas del menú, el héroe de la tarjeta y las miniaturas del selector.
+  - **archivos:** `assets/idle_brujo.png`, `assets/idle_vampiro.png`, `assets/idle_hombre-lobo.png` (hojas de 8 cuadros: 4 de respiración + los mismos 4 con parpadeo).
+  - se retiraron los stickers de frente (`assets/front_*.png`).
+- **transformación completa en escoba:**
+  - al empezar la carrera hay un poof con los colores del disfraz y el personaje se convierte en la escoba encantada: no hay jinete.
+  - **la escoba:** 4 cuadros con paja que flamea; rota con la velocidad, se mece y se ve más grande (×1,3, ~166 px). el hitbox no cambia.
+  - **la elección de personaje se nota:**
+    - la estela de polvo mágico toma los colores del personaje: brujo morado/dorado, lobo gris/ámbar, vampiro rojo/negro
+    - la atadura de la escoba lleva el color del disfraz
+    - cuelga un dije pixel art que se mece 1 px: cristal morado (brujo), ojo ámbar (lobo) o joya roja con cruz dorada (vampiro)
+  - **cometa:** la escoba se enciende y se vuelve el cometa morado; adentro solo se ve una silueta tenue de la escoba. al terminar vuelve a ser escoba.
+  - al chocar, al terminar la práctica o al volver al menú, el personaje reaparece con un poof.
+- **historia de apertura:** se escribe sola tipo máquina de escribir sobre el fondo del juego.
+  - se puede saltar con «saltar», tocando, o con espacio/enter/esc.
+  - se muestra sola una vez por dispositivo; queda guardado en `kozmicRun.storySeen` y sobrevive al cambio de día.
+  - el botón «✦ historia» de la tarjeta la vuelve a abrir.
+  - texto:
+    > es noche de hallogeekz y el tanuki morado de geekz se pone su disfraz.
+    > pero un hechizo travieso lo convierte en una escoba encantada… ¡y sale volando!
+    > cruza el bosque tenebroso, el cementerio y el infierno juntando kozmits ✦.
+    > con 50 la escoba arde en un cometa morado.
+    > al final espera la oscuridad: nadie ha sobrevivido a ella. ¿hasta dónde llegarás?
+- **sin explicaciones durante la carrera:**
+  - **se quitaron:**
+    - «invencible · rompe obstáculos · imán», «fin del cometa», «fin del poder», «¡poder gatuno! 3 s» y «racha ×n»
+    - todos los flashes de pantalla completa (entrada a la oscuridad, choque, gato)
+  - **quedan:** «+n ✦», «¡cometa morado!», «¡cadena perfecta! +n ✦», «−n ✦» (cadena rota), el nombre del acto y «¡vamos!».
+  - la leyenda de «cómo funciona» y el texto de la tarjeta se acortaron.
+- **la oscuridad siempre gana:**
+  - **escalada:** desde los 90 s sube el tope de velocidad (680 → 780 px/s), los obstáculos salen más seguido, los huecos se angostan y las espadas voladoras van más rápido.
+  - **«oscuridad total» a los 156 s** (66 s después de entrar a la oscuridad):
+    - un túnel de muros de obsidiana con borde rojo-violeta serpentea (distinto en cada carrera) y se cierra
+    - el fondo se oscurece desde los bordes, pero nunca queda negro
+    - el hueco baja de 212 px a menos que el hitbox de la escoba (36 px) en ~10 s
+  - **en esa fase:**
+    - no hay cometa: si estaba activo se apaga y el medidor no lo dispara
+    - no hay gatos ni invencibilidad
+    - el modo dios de pruebas no aplica
+    - ninguna cadena se genera hacia esa fase, así que todas las anteriores siguen siendo 100 % juntables
+  - **verificación:** un bot con búsqueda exhaustiva de entradas (`forced191.js`) muere siempre entre los 166,2 y 166,5 s de carrera (~76 s en la oscuridad, ~10,3 s dentro de la fase final). se probaron 8 semillas, con y sin cometa activo al entrar.
+- **más monedas (≈ +45 %), siempre en cadenas de habilidad:**
+  - más cadenas por acto, más largas (temprano 9–12 · medio 10–14 · tarde 12–16 · oscuridad 15–19) y con monedas un poco más juntas
+  - menos espacio entre cadenas, y se pueden encolar más adelante
+  - los objetos sueltos ya no caen encima de una línea de cadena (se corren o se omiten)
+  - densidad (objetos/s, mismo controlador neutro): ver tabla en el informe; la repetición de entradas planificadas sigue 100 %.
+- **móvil:**
+  - **pantalla:**
+    - en teléfono horizontal el juego ocupa toda la pantalla, ajustado 9:5 con franjas, respetando notch y barra de inicio (`viewport-fit=cover` + `env(safe-area-inset-*)` + `visualViewport`)
+    - la tarjeta del menú se compacta a la derecha, con vidas/kozmits/récord y botón de sonido
+  - **vertical:** el menú es la página normal. al empezar una carrera aparece un aviso suave «gira tu teléfono», que pausa la carrera; se descarta con «jugar así» (la carrera queda ajustada al ancho).
+  - **sin gestos del navegador:** sin scroll, rebote, zoom por pellizco o doble toque, selección de texto ni menú de pulsación larga.
+  - **control:**
+    - se mantiene para volar en todo el lienzo, el botón «vuela» y, durante la carrera en el celular, cualquier parte de la pantalla
+    - es multitáctil y sin demora de 300 ms
+    - se suelta con pointerup/cancel, touchend/touchcancel, blur, pestaña oculta o pausa
+  - **audio:**
+    - se desbloquea en el primer toque (búfer mudo + `resume()` dentro del gesto)
+    - en iOS respeta el interruptor de silencio (`audioSession='ambient'`)
+    - se reanuda al volver del fondo
+  - **rendimiento:**
+    - el juego se dibuja siempre en coordenadas 900×500. el lienzo real usa escala ×1–2 según el tamaño y el `devicePixelRatio` (en celular arranca en 1,5) y baja sola si los cuadros van lentos
+    - los halos ahora son pre-renderizados (no hay gradientes por cuadro ni `shadowBlur` por partícula)
+    - en celular hay un tope de 320 partículas
+    - delta-time con sub-pasos de ≤1/60 s: la misma velocidad a 60/120 Hz y con cuadros lentos
+    - la carrera se pausa con la pestaña oculta y se reanuda suave
+  - **imágenes:**
+    - los 4 panoramas pasan a webp (~120–190 kB c/u en vez de ~1–1,2 MB png), con respaldo png
+    - barra «cargando arte… n %» en la tarjeta
+  - **web app:** `manifest.webmanifest` (pantalla completa, horizontal), íconos 180/192/512 (+ maskable) y metas `apple-mobile-web-app-*`. en android, al empezar se pide pantalla completa y horizontal donde el navegador lo permite.
+- se mantienen `BETA=true` (vidas ∞), la clave `kozmicRun`, el gancho `index.html?test`, la música, la luna, el brillo de obstáculos, el cometa y las cadenas de v1.8.4. sin scanlines ni flashes; nunca se sesga el arte.
 
 ## v1.9 — idle de frente, escoba voladora, recorrido al azar en cada carrera
 - **idle de frente en el menú (pixel art estilo snes):** en el menú, la elección de personaje y entre carreras, el personaje mira al jugador y anima en su lugar con cuadros de sprite (no es una interpolación suave):

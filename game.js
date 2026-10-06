@@ -1,6 +1,9 @@
-/* KOZMIK RUN v1.9 beta — geekz · temporada hallogeekz · pack gótico 32-bit
+/* KOZMIK RUN v1.9.1 beta — geekz · temporada hallogeekz · pack gótico 32-bit
    Canvas 900×500. Mecánica original intacta: mantener = subir, soltar = bajar,
    práctica 7 s ilimitada, 3 carreras reales por día, kozmits ✦, localStorage.
+   v1.9.1: vuelven los 3 personajes originales (perfil 32-bit) con idle snes por partes; en carrera el personaje se vuelve
+           la escoba (sin jinete, dije y estela del disfraz); historia de apertura; sin textos explicativos ni flashes;
+           «oscuridad total» a los 156 s (túnel que se cierra → siempre se pierde); ≈+45 % monedas en cadenas; adaptación móvil.
    v1.9: idle de frente (pixel art, respira/parpadea) en menú, escoba voladora pixel-art en carrera, cometa que nace de la escoba,
          recorrido al azar en cada carrera (semilla nueva por carrera; ?test puede fijarla).
    v1.8.1: auras rojo/azul, más monedas, speed metal, animación del jugador.
@@ -15,6 +18,17 @@
 const BETA=true;
 const canvas=document.querySelector('#game'),ctx=canvas.getContext('2d'),W=900,H=500;
 ctx.imageSmoothingEnabled=false;if('imageSmoothingQuality' in ctx)ctx.imageSmoothingQuality='low';
+/* v1.9.1 (móvil): el juego siempre se dibuja en coordenadas lógicas 900×500; el lienzo real usa RS = escala de render
+   (tamaño en pantalla × devicePixelRatio, acotado a 1..2). si los cuadros van lentos, RS baja sola (calidad adaptativa). */
+const IS_TOUCH=matchMedia('(pointer:coarse)').matches||('ontouchstart' in window&&navigator.maxTouchPoints>0);
+const IS_IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const LOWFX=IS_TOUCH; // sin shadowBlur por partícula, menos partículas
+let RS=1,rsCap=IS_TOUCH?1.5:2; // en celular se arranca en 1.5 (nitidez vs. costo de pintado) y baja sola si hace falta
+function fitCanvas(){
+  const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+  let sc=Math.max(1,Math.min(2,rsCap,(r.width||W)*dpr/W));sc=Math.round(sc*4)/4;
+  if(sc!==RS||canvas.width!==Math.round(W*sc)){RS=sc;canvas.width=Math.round(W*sc);canvas.height=Math.round(H*sc);ctx.imageSmoothingEnabled=false}
+}
 const FLOOR_H=64; // franja de piedra de castillo inferior
 const $=s=>document.querySelector(s);
 const dateKey=()=>new Date().toLocaleDateString('en-CA');
@@ -24,13 +38,22 @@ const KEY='kozmicRun';
 const blank=()=>({day:dateKey(),lives:3,wallet:0,best:0,runs:0});
 let data;
 try{data=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem('kozmikRun')||'null')}catch(e){}
-if(!data||data.day!==dateKey())data={...blank(),wallet:data?.wallet||0,best:data?.best||0,skin:data?.skin};
+if(!data||data.day!==dateKey())data={...blank(),wallet:data?.wallet||0,best:data?.best||0,skin:data?.skin,storySeen:data?.storySeen||0};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}};
 save();
 
 /* ---------- arte ---------- */
 const IMG={};
-const load=(k,src)=>{const i=new Image();i.onload=()=>i._ok=true;i.onerror=()=>i._ok=false;i.src=src;IMG[k]=i};
+// v1.9.1 (móvil): panoramas en webp (~150 kB c/u en vez de ~1.2 MB png; respaldo png) + progreso de carga
+let loadTotal=0,loadDone=0;
+const load=(k,src)=>{loadTotal++;const i=new Image();let fb=null;
+  if(/bg_pan_[a-z]+\.png$/.test(src)){fb=src;src=src.replace(/\.png$/,'.webp')}
+  i.onload=()=>{i._ok=true;loadDone++;loadProgress()};
+  i.onerror=()=>{if(fb){const f=fb;fb=null;i.src=f;return}i._ok=false;loadDone++;loadProgress()};
+  i.src=src;IMG[k]=i};
+function loadProgress(){const el=document.getElementById('loadbar');if(!el)return;const f=loadTotal?loadDone/loadTotal:1;
+  el.style.setProperty('--p',(f*100).toFixed(0)+'%');const sp=el.querySelector('span');if(sp)sp.textContent='cargando arte… '+Math.round(f*100)+'%';
+  if(loadDone>=loadTotal)el.classList.add('done')}
 /* v1.8: objetos del pack gótico 32-bit → masN = coleccionables (N ✦) · menosN = obstáculos (tamaño ∝ N) */
 const MAS_FILES=['mas1','mas2','mas3','mas4','mas6a','mas6b','mas6c','mas7','mas8'];
 const MENOS_FILES=['menos0','menos1a','menos1b','menos1c','menos2','menos3','menos4a','menos4b','menos4c','menos5','menos6'];
@@ -54,10 +77,12 @@ const SKINS=[
   ['hombre-lobo','hombre lobo',{trail:['#c8c0b0','#ffb347','#8a8478','#fff4d8','#6a5f52'],idle:['#8a8478','#ffb347']}]
 ];
 SKINS.forEach(([k])=>{load('skin_'+k,'assets/skin_'+k+'.png');STICKER.add('skin_'+k)});
-/* v1.9: arte de FRENTE por personaje (hoja de 8 cuadros pixel art 1×: 4 de respiración + los mismos 4 con parpadeo)
-   y escoba voladora pixel-art 32-bit (4 cuadros de paja que flamea, PNG a 2×) */
+/* v1.9.1: vuelven los 3 personajes ORIGINALES (pack gótico 32-bit, de perfil). hoja idle de 8 cuadros pixel art
+   construida desde esos mismos sprites (4 de respiración + los mismos 4 con parpadeo), animación por partes a pasos
+   de 1 px: respiración, párpado, cola, capa/punta del sombrero, cristal del báculo, alas, pelaje. sin sesgo.
+   + escoba voladora pixel-art 32-bit (4 cuadros de paja que flamea, PNG a 2×) */
 const FRONT_FRAMES=8,FRONT_SC=2;
-SKINS.forEach(([k])=>load('front_'+k,'assets/front_'+k+'.png'));
+SKINS.forEach(([k])=>load('idle_'+k,'assets/idle_'+k+'.png'));
 load('broom32','assets/broom_32bit.png');
 const DEFAULT_SKIN='brujo';
 if(!SKINS.some(([k])=>k===data.skin)){data.skin=DEFAULT_SKIN;save()}
@@ -119,7 +144,11 @@ function glint(x,y,s,a){
   ctx.fillRect(X-r,Y-1,r*2,2);ctx.fillRect(X-1,Y-r,2,r*2);ctx.fillStyle='#ffffff';ctx.fillRect(X-2,Y-2,4,4);
   ctx.globalAlpha*=.45;ctx.fillRect(X-Math.round(r*.5),Y-Math.round(r*.5),Math.round(r),Math.round(r));ctx.restore();
 }
-function glow(x,y,r,color,a=.5){const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,'rgba(0,0,0,0)');ctx.save();ctx.globalAlpha=a;ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2);ctx.restore()}
+const glowCache=new Map();
+function glowImg(color){let c=glowCache.get(color);if(c)return c;if(glowCache.size>300)glowCache.clear();
+  c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d'),gr=g.createRadialGradient(64,64,0,64,64,64);
+  gr.addColorStop(0,color);gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,128,128);glowCache.set(color,c);return c}
+function glow(x,y,r,color,a=.5){if(!(r>0))return;ctx.save();ctx.globalAlpha=a;ctx.imageSmoothingEnabled=true;ctx.drawImage(glowImg(color),x-r,y-r,r*2,r*2);ctx.restore()} // v1.9.1: glow pre-renderizado
 function starPath(r1,r2,n=5){ctx.beginPath();for(let i=0;i<n*2;i++){const a=-Math.PI/2+i*Math.PI/n,r=i%2?r2:r1;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r)}ctx.closePath()}
 
 /* ---------- sonido (Web Audio, sin archivos) ----------
@@ -154,9 +183,12 @@ const Sound=(()=>{
     ws.connect(hp);hp.connect(cab);cab.connect(out);out.connect(song);song._dist=ws;
   }
   function init(){
-    if(ac){if(ac.state==='suspended')ac.resume();return}
+    if(ac){if(ac.state!=='running'&&!document.hidden){try{const p=ac.resume();if(p&&p.catch)p.catch(()=>{})}catch(e){}}return}
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+    // v1.9.1 (iOS): respeta el interruptor de silencio (audio «ambiente») y desbloquea con un búfer mudo dentro del gesto
+    try{if(navigator.audioSession)navigator.audioSession.type='ambient'}catch(e){}
     ac=new AC();
+    try{const b=ac.createBuffer(1,1,22050),s0=ac.createBufferSource();s0.buffer=b;s0.connect(ac.destination);s0.start(0);if(ac.state!=='running')ac.resume()}catch(e){}
     buildGraph(muted?0:.95,musicVol,sfxVol);
     // "jet" suave mientras se mantiene el impulso
     const n=ac.createBufferSource();n.buffer=noiseBuf;n.loop=true;const bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1100;bp.Q.value=.8;
@@ -542,7 +574,7 @@ const Sound=(()=>{
     gameOver,
     get mode(){return mode},
     suspend(){if(ac&&ac.state==='running')ac.suspend()},
-    resume(){if(ac&&ac.state==='suspended')ac.resume()},
+    resume(){if(ac&&ac.state!=='running'&&!document.hidden){try{const p=ac.resume();if(p&&p.catch)p.catch(()=>{})}catch(e){}}},
     jet(on){if(ac)jetGain.gain.setTargetAtTime(on?.045:0,ac.currentTime,on?.04:.08)},
     boost(){tone('square',260,640,.09,.07,0,sfx,2600);tone('triangle',520,1240,.08,.06)},
     collect(v=1){
@@ -589,7 +621,7 @@ const Sound=(()=>{
 let state='ready',mode='real',practiceLeft=7,last=performance.now(),world=0,speed=230,
     player={x:180,y:250,vy:0,rot:0},obs=[],sparkles=[],particles=[],texts=[],held=false,
     score=0,runCoins=0,spawnIn=1.1,seed=(Date.now()^Math.floor(Math.random()*1e9))>>>0,
-    shake=0,flash=0,crashT=0,boostT=0,t=0,runTime=0,voidMode=false,chains={},
+    shake=0,flash=0,crashT=0,boostT=0,t=0,runTime=0,voidMode=false,finalMode=false,finalT=0,wallNextX=0,wallN=0,chains={},
     invulnT=0,nextCatAt=0, // v1.6: poder gatuno (invencible 3 s) + enfriamiento de aparición de gatos
     comet=0,cometGrace=0,cometMeter=0,cometTrail=[],cometWarnAt=0,chainStreak=0,lastChainEnd=null; // v1.8.4
 const INVULN_DUR=3,CAT_GAP=9;
@@ -612,6 +644,7 @@ let runSeed=0;
 
 function ui(){
   $('#lives').textContent=BETA?'∞':data.lives;$('#wallet').textContent=data.wallet;$('#best').textContent=data.best;
+  const ms=$('#ministats');if(ms)ms.innerHTML=`vidas <b>${BETA?'∞':data.lives}</b> · kozmits <b>${data.wallet}</b> · récord <b>${data.best}</b>`;
   $('#runNo').textContent=(state==='playing'&&mode==='practice')?'libre':((state==='playing'||state==='crashing')&&mode==='real'?data.runs:Math.min(3,data.runs+1))+' / 3';
 }
 function panel(title,msg,practiceText,realText,hint){
@@ -632,13 +665,14 @@ function prepareRun(kind){
   if(state==='playing'||state==='crashing'||(kind==='real'&&!BETA&&data.lives<=0))return;
   Sound.init();Sound.ui();Sound.resetTempo();lastActAnnounced=-1;
   mode=kind;if(kind==='real'){if(!BETA)data.lives--;data.runs++;save()}
+  if(typeof touchIds!=='undefined')touchIds.clear();pauseReason=null;resumeRamp=0;
   practiceLeft=7;state='playing';world=0;speed=230;score=0;runCoins=0;spawnIn=1.05;
-  runTime=0;voidMode=false;chains={};invulnT=0;nextCatAt=4;
+  runTime=0;voidMode=false;finalMode=false;finalT=0;chains={};invulnT=0;nextCatAt=4;
   comet=0;cometGrace=0;cometMeter=0;cometTrail=[];chainStreak=0;lastChainEnd=null;Sound.setComet(false);
   obs=[];sparkles=[];particles=[];texts=[];held=false;shake=0;flash=0;
   player={x:180,y:250,vy:0,rot:0};
   seed=runSeed=TESTCFG.seed!=null?(TESTCFG.seed>>>0):freshSeed();
-  rigPop=RIG_POP;broomPoof(true); // v1.9: se transforma en jinete de escoba (poof de partículas, sin flash)
+  rigPop=RIG_POP;broomPoof(true); // v1.9.1: el personaje se transforma POR COMPLETO en la escoba (poof local, sin flash)
   last=performance.now();
   $('#timer').textContent='';$('#distance').textContent='0 m';
   $('#distanceLabel').textContent=kind==='practice'?'práctica':'distancia';
@@ -647,19 +681,19 @@ function prepareRun(kind){
   texts.push({x:W/2,y:H/2-20,text:kind==='practice'?'¡a practicar!':'¡vamos!',color:'#d7ff58',life:1,max:1,size:40,vy:-20});
 }
 function finishPractice(){
-  state='ready';comet=0;cometGrace=0;Sound.setComet(false);setHeld(false);ui();Sound.setIntensity(0);Sound.resetTempo();Sound.jingle();
-  panel('¡práctica<br>lista!','¡buen vuelo! la práctica es ilimitada: no gasta vidas ni suma puntos. ¿te lanzas a una carrera de verdad?','practicar otra vez · 7 seg','empezar carrera',BETA?'beta: vidas ∞. mantén «vuela» para subir; suelta para bajar.':'mantén «vuela» para subir; suelta para bajar. cada carrera usa 1 de tus 3 vidas diarias.');
+  state='ready';comet=0;cometGrace=0;Sound.setComet(false);setHeld(false);charPoof();ui();Sound.setIntensity(0);Sound.resetTempo();Sound.jingle();
+  panel('¡práctica <br>lista!','¡buen vuelo! la práctica es ilimitada: no gasta vidas ni suma puntos. ¿te lanzas a una carrera de verdad?','practicar otra vez · 7 seg','empezar carrera',BETA?'beta: vidas ∞. mantén «vuela» para subir; suelta para bajar.':'mantén «vuela» para subir; suelta para bajar. cada carrera usa 1 de tus 3 vidas diarias.');
 }
 function end(){
-  state='over';setHeld(false); // v1.8.2: la música de game over ya suena desde crash()
+  state='over';setHeld(false);charPoof(); // v1.8.2: la música de game over ya suena desde crash() · v1.9.1: vuelve el personaje
   const earned=Math.max(0,Math.floor(score/5)+runCoins),dist=Math.floor(score),rec=dist>data.best&&dist>0;
   data.wallet+=earned;data.best=Math.max(data.best,dist);save();ui();if(rec)Sound.record();
   const left=BETA?'modo beta: vidas infinitas — sigue probando.':(data.lives?`te ${data.lives===1?'queda 1 carrera':`quedan ${data.lives} carreras`} hoy.`:'vuelve mañana por tres carreras nuevas.');
-  panel(rec?'¡nuevo<br>récord!':'¡carrera<br>terminada!',`distancia: ${dist} m • kozmits: ${runCoins} • puntos ganados: ${earned}. ${left}`,
+  panel(rec?'¡nuevo <br>récord!':'¡carrera <br>terminada!',`distancia: ${dist} m • kozmits: ${runCoins} • puntos ganados: ${earned}. ${left}`,
     'practicar otra vez · 7 seg',(BETA||data.lives)?'otra carrera':'sin carreras por hoy',BETA?'beta: vidas ∞ para probar el avance.':'la práctica sigue ilimitada. las carreras se reinician a medianoche.');
 }
 function crash(){
-  state='crashing';crashT=.8;invulnT=0;comet=0;cometGrace=0;Sound.setComet(false);setHeld(false);Sound.crash();Sound.gameOver();shake=16;flash=.25;
+  state='crashing';crashT=.8;invulnT=0;comet=0;cometGrace=0;Sound.setComet(false);setHeld(false);Sound.crash();Sound.gameOver();shake=16;
   player.vy=-280;
   for(let i=0;i<34;i++){const a=Math.random()*Math.PI*2,s=80+Math.random()*320;
     particles.push({x:player.x,y:player.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.7+Math.random()*.5,max:1.2,size:2+Math.random()*4,color:['#a98cf0','#d7ff58','#ffffff','#ff9b42'][i%4],g:400,kind:i%3?'dot':'star'})}
@@ -735,12 +769,12 @@ function menos(key,place,x,y,maxH){
 }
 // gato = poder; con enfriamiento para que no haya invencibilidad constante
 const CAT_SZ={w:58,h:64};
-function catReady(){if(TESTCFG.noCats||runTime<nextCatAt||invulnT>0)return false;nextCatAt=runTime+CAT_GAP+rand()*4;return true}
+function catReady(){if(TESTCFG.noCats||runTime<nextCatAt||invulnT>0||runTime>FINAL_AT-4)return false;nextCatAt=runTime+CAT_GAP+rand()*4;return true}
 function catPower(x){return{x,y:H-FLOOR_H-CAT_SZ.h,w:CAT_SZ.w,h:CAT_SZ.h,kind:'cat',img:pick(CATS_GROUND),fixed:true,place:'ground',power:true}}
 const MIN_ROOM=188; // hueco mínimo entre techo y suelo (v1.8.1: más holgado)
 function obstacle(){
   const nw=[]; // v1.8.4: piezas nuevas → se ajustan para no tapar cadenas activas antes de entrar a obs
-  let gap=voidMode?Math.max(110,155-Math.min(34,(runTime-ACT_DUR*3)*.7)):Math.max(162,235-Math.min(52,world*.0048));
+  let gap=voidMode?Math.max(100,155-Math.min(55,(runTime-ACT_DUR*3)*.85)):Math.max(162,235-Math.min(52,world*.0048));
   let center=145+rand()*(voidMode?180:210);let type=rand();
   if(voidMode&&type>.25)type=rand()*.5; // más fijos/combos en oscuridad
   const act=currentActIndex();
@@ -775,8 +809,9 @@ function obstacle(){
   for(const o of nw){const f=fitAroundChains(o,paths);if(f){f.born=runTime;obs.push(f)}}
   // kozmits: cadenas de habilidad (v1.8.4: trayectoria física real) / objetos mas sueltos
   const roll=rand();
-  const chainChance=voidMode?Math.min(.66,.55+(runTime-ACT_DUR*3)*.004):(.38+Math.min(.18,runTime/(ACT_DUR*3)*.18));
-  const putLoose=it=>{if(!nearChainCoin(it.x,it.y))sparkles.push(it)};
+  const chainChance=voidMode?Math.min(.92,.8+(runTime-ACT_DUR*3)*.004):(.54+Math.min(.26,runTime/(ACT_DUR*3)*.26)); // v1.9.1: +cadenas
+  const putLoose=it=>{ // v1.9.1: si cae encima de una línea de cadena, se corre arriba/abajo (si no hay lugar, se omite)
+    const y0=it.y;for(const dy of [0,120,-120,170,-170]){const y=y0+dy;if(y<60||y>H-FLOOR_H-30)continue;if(!nearChainCoin(it.x,y)){it.y=y;sparkles.push(it);return}}};
   if(!(roll<chainChance&&spawnSkillChain(center,gap))){
     const m=pickMas(),y0=center+(rand()-.5)*gap*.5;
     putLoose(masItem(m,W+90,y0));
@@ -785,10 +820,10 @@ function obstacle(){
       if(rand()<.5)putLoose(masItem(masByN(1),W+90+88,Math.max(60,Math.min(H-FLOOR_H-30,y1+(rand()-.5)*40))))}
   }
   // v1.8.2: migas de monedas entre obstáculos (mini fila de 3 en el carril del hueco)
-  if(rand()<.5){const yb=Math.max(70,Math.min(H-FLOOR_H-40,center+(rand()-.5)*gap*.3)),dy=(rand()-.5)*30;
+  if(rand()<(voidMode?.6:.5)){const yb=Math.max(70,Math.min(H-FLOOR_H-40,center+(rand()-.5)*gap*.3)),dy=(rand()-.5)*30;
     for(let i=0;i<3;i++)putLoose(masItem(masByN(1),W+210+i*40,yb+dy*i))}
 }
-function nearChainCoin(x,y){for(const c of sparkles)if(c.chainId&&Math.abs(c.x-x)<44&&Math.abs(c.y-y)<44)return true;return false}
+function nearChainCoin(x,y){for(const c of sparkles)if(c.chainId&&Math.abs(c.x-x)<70&&Math.abs(c.y-y)<95)return true;return false} // v1.9.1: sueltos lejos de las líneas de cadena (no se confunden)
 function hitBox(o){
   let ox,oy,ow,oh;
   if(o.kind==='menos'){
@@ -807,7 +842,7 @@ function hitBox(o){
   return[ox,oy,ow,oh];
 }
 const PL_HX=20,PL_HY=18; // hitbox del jugador (±20 × ±18 alrededor de player.x/y)
-function hit(o){const[ox,oy,ow,oh]=hitBox(o),px=player.x,py=player.y;return px+PL_HX>ox&&px-PL_HX<ox+ow&&py+PL_HY>oy&&py-PL_HY<oy+oh}
+function hit(o){const[ox,oy,ow,oh]=o.kind==='wall'?[o.x,o.y,o.w,o.h]:hitBox(o),px=player.x,py=player.y;return px+PL_HX>ox&&px-PL_HX<ox+ow&&py+PL_HY>oy&&py-PL_HY<oy+oh}
 
 
 /* ---------- v1.8.4: cadenas de HABILIDAD ----------
@@ -817,6 +852,14 @@ function hit(o){const[ox,oy,ow,oh]=hitBox(o),px=player.x,py=player.y;return px+P
    se pueden juntar todas solo con habilidad. se verifica que quede en pantalla y que no cruce obstáculos (con margen);
    los obstáculos que salgan después se recortan / mueven / omiten si taparían una cadena activa. */
 let chainSeq=0;
+/* v1.9.1: velocidad en UNA función (update, forecast y warp de pruebas). en oscuridad el tope sigue subiendo
+   (680 → 780 px/s en ~60 s) y a los FINAL_AT s llega la «oscuridad total»: un túnel de muros que se cierra
+   hasta que ya no cabe la escoba → toda carrera termina ahí (sin cometa, sin gatos). */
+const VOID_AT=90,FINAL_AT=VOID_AT+66,WALL_W=34; // VOID_AT = ACT_DUR*3 (ACT_DUR se declara más abajo)
+function speedAt(rt,w,vm){if(vm){const vt=rt-VOID_AT;return Math.min(680+Math.min(100,vt*1.65),490+vt*5.2+w*.009)}return Math.min(500,230+w*.017+rt*.95)}
+function finalGap(ft){return Math.max(0,212-17.5*ft)} // alto del hueco del túnel (el hitbox mide 36) → imposible a los ~10 s
+let finalPh=.6;
+function finalCenter(ft,gap){const A=Math.min(118,40+8.5*ft),c=238+A*Math.sin(ft*1.05+finalPh)+18*Math.sin(ft*2.3+finalPh*1.7);const lo=gap/2+16,hi=H-FLOOR_H-gap/2-8;return Math.max(lo,Math.min(hi,c))}
 /* lo que se crea dentro de update() se mueve speed·dt en ese mismo frame (world ya avanzó) → referencia corregida */
 let spawnShift=0;
 const PHYS={up:-980,down:720,vmin:-370,vmax:430},SIM_DT=1/60,LEAD_F=30; // entrada de 0.5 s antes de la 1ª moneda
@@ -830,7 +873,7 @@ function chainDiff(){
 function forecast(frames){
   let rt=runTime,w=world,sp=speed,vm=voidMode;const out=[{rt,w}];
   for(let k=0;k<frames;k++){rt+=SIM_DT;if(rt>=ACT_DUR*3)vm=true;w+=sp*SIM_DT;
-    sp=vm?Math.min(680,490+(rt-ACT_DUR*3)*5.2+w*.009):Math.min(500,230+w*.017+rt*.95);out.push({rt,w})}
+    sp=speedAt(rt,w,vm);out.push({rt,w})}
   return out;
 }
 function physStep(st,u,dt){st.vy+=(u?PHYS.up:PHYS.down)*dt;st.vy=Math.max(PHYS.vmin,Math.min(PHYS.vmax,st.vy));st.y+=st.vy*dt}
@@ -859,7 +902,7 @@ function pickChainKind(diff){
   return r<.18?'ola':r<.28?'subida':r<.38?'picada':r<.52?'arco':r<.66?'valle':'eses';
 }
 // deriva de obstáculos que se mueven: [vx extra hacia la izquierda (px/s), holgura vertical por el vaivén]
-const obsDrift=o=>o.fixed?[0,0]:o.flying?[voidMode?80:50,voidMode?19:14]:o.kind==='catBat'?[voidMode?40:20,24]:[0,voidMode?19:14];
+const obsDrift=o=>o.fixed?[0,0]:o.flying?[voidMode?80+Math.min(40,(runTime-VOID_AT)*.6):50,voidMode?19:14]:o.kind==='catBat'?[voidMode?40:20,24]:[0,voidMode?19:14];
 // ¿la trayectoria (coordenadas de mundo) pasa por el obstáculo? con margen y movimiento del obstáculo
 function pathHits(path,o,mx=CH_MX,my=CH_MY){
   const[ox,oy,ow,oh]=hitBox(o),X0=ox+world-spawnShift,X1=X0+ow,[vx,ay]=obsDrift(o);
@@ -883,16 +926,16 @@ function fitAroundChains(o,paths){
 }
 function spawnSkillChain(center,gap){
   const diff=chainDiff();
-  // largo: temprano 7–9 · medio 8–11 · tarde 9–12 · oscuridad 10–13 (monedas a ~40–44 px → se lee como línea)
-  const [nMin,nMax]=diff<.22?[7,9]:diff<.45?[8,11]:diff<.72?[9,12]:[10,13];
-  const spacing=44-diff*4;
-  const fc=forecast(Math.ceil(2.8*60+LEAD_F+(W+480)/Math.max(200,speed)*60));
+  // largo: temprano 9–12 · medio 10–14 · tarde 12–16 · oscuridad 15–19 (monedas a ~35–40 px → se lee como línea)
+  const [nMin,nMax]=diff<.22?[9,12]:diff<.45?[10,14]:diff<.72?[12,16]:[15,19]; // v1.9.1: cadenas más largas
+  const spacing=40-diff*5;
+  const fc=forecast(Math.ceil(2.8*60+LEAD_F+(W+760)/Math.max(200,speed)*60));
   const here=world+player.x; // x de mundo del jugador ahora
   // 1ª moneda en x de pantalla ≥ W+60 y después de la cadena anterior (+0.5 s para reacomodarse + 0.5 s de entrada)
   let X1=world+W+60;
   const prev=lastChainEnd&&lastChainEnd.wx>here?lastChainEnd:null;
-  if(prev){const need=prev.wx+Math.max(150,speed*.5)+speed*LEAD_F/60;if(need>X1)X1=need}
-  if(X1>world+W+460)return false;
+  if(prev){const need=prev.wx+Math.max(105,speed*(voidMode?.4:.34))+speed*LEAD_F/60;if(need>X1)X1=need} // v1.9.1: cadenas más seguidas
+  if(X1>world+W+740)return false; // v1.9.1: se pueden encolar cadenas más adelante (más seguidas)
   let kC=1;while(kC<fc.length-1&&fc[kC].w+player.x<X1)kC++;
   const kS=kC-LEAD_F;if(kS<1)return false;
   for(let attempt=0;attempt<26;attempt++){
@@ -925,6 +968,7 @@ function spawnSkillChain(center,gap){
       if(st.y<CH_TOP-16||st.y>CH_BOT+16){safe=false;break}
       if(q<10&&k<fc.length)path.push({wx:fc[k].w+player.x,y:st.y,vy:st.vy,rt:fc[k].rt,u:ur})}
     if(!safe)continue;
+    if(path[path.length-1].rt>FINAL_AT-.3)return false; // v1.9.1: ninguna cadena entra a la oscuridad total
     if(obs.some(o=>!o.power&&pathHits(path,o)))continue;
     // ¡vale! monedas (mundo → pantalla)
     const id='c'+(++chainSeq),last=coins[coins.length-1];
@@ -984,7 +1028,7 @@ function maybeAnnounceAct(){
     if(lastActAnnounced>=0||a===3){
       const meta=ACT_META[a];
       texts.push({x:W/2,y:H/2-60,text:meta.name,color:meta.lane,life:1.6,max:1.6,size:a===3?36:28,vy:-28});
-      if(a===3){flash=.35;shake=10}
+      if(a===3){shake=10} // v1.9.1: sin flash de pantalla
     }
     lastActAnnounced=a;
   }
@@ -993,6 +1037,52 @@ function enterVoid(){
   if(voidMode)return;
   voidMode=true;
   maybeAnnounceAct();
+}
+/* v1.9.1: «oscuridad total» — fase final sin explicación: túnel de muros de obsidiana que converge y serpentea;
+   el hueco se cierra hasta quedar más chico que la escoba. sin cometa (si estaba activo se apaga), sin gatos/invencible. */
+function enterFinal(){
+  if(finalMode)return;finalMode=true;finalT=0;wallNextX=W+30;wallN=0;finalPh=((runSeed>>>3)%628)/100; // el túnel serpentea distinto en cada carrera
+  if(comet>0){comet=0;cometTrail=[];Sound.cometOff();Sound.setComet(false);cometBurst(player.x,player.y-4,false);rigPop=RIG_POP*.7}
+  cometGrace=0;invulnT=0;shake=Math.max(shake,6);
+  texts.push({x:W/2,y:H/2-60,text:'oscuridad total',color:'#ff8aa8',life:1.6,max:1.6,size:34,vy:-28});
+}
+function updateFinal(dt){
+  finalT+=dt;invulnT=0;cometGrace=0;if(comet>0){comet=0;cometTrail=[];Sound.setComet(false)}
+  wallNextX-=speed*dt;
+  while(wallNextX<W+60){
+    const ft=finalT+(wallNextX-(W+30))/Math.max(1,speed),gap=finalGap(Math.max(0,ft)),c=finalCenter(Math.max(0,ft),gap);
+    const top=c-gap/2,bot=c+gap/2,j=wallN++;
+    obs.push({x:wallNextX,y:-60,w:WALL_W+1,h:top+60,kind:'wall',top:true,fixed:true,j,born:runTime});
+    obs.push({x:wallNextX,y:bot,w:WALL_W+1,h:H-bot,kind:'wall',top:false,fixed:true,j,born:runTime});
+    if(j%4===0&&gap>40&&mode==='real')sparkles.push(masItem(masByN(1),wallNextX+WALL_W/2,c));
+    wallNextX+=WALL_W;
+  }
+}
+function drawWall(o){ // muro de obsidiana con borde dentado a pasos y brillo rojo-violeta en la cara del hueco
+  const x=Math.round(o.x),w=o.w,edge=o.top?o.y+o.h:o.y,j=o.j,r=randAt(j*3.1+(o.top?7:0));
+  ctx.save();
+  const g=ctx.createLinearGradient(0,o.top?0:H,0,edge);g.addColorStop(0,'#05020c');g.addColorStop(.7,'#140826');g.addColorStop(1,'#2a0f44');
+  ctx.fillStyle=g;ctx.fillRect(x,o.top?0:edge,w,o.top?edge:H-edge);
+  // dientes pixel (pasos de 6 px) hacia el hueco
+  const tooth=6*(1+Math.floor(r*3)),dir=o.top?1:-1;
+  ctx.fillStyle='#24103c';ctx.fillRect(x+6,edge,w-12,dir*tooth*.5);
+  ctx.fillStyle='#1a0a2e';ctx.fillRect(x+12,edge+dir*tooth*.5,w-24>0?w-24:6,dir*tooth*.5);
+  // vetas
+  ctx.fillStyle='#3a1866';ctx.fillRect(x+Math.floor(r*20)+4,o.top?Math.max(0,edge-40-r*60):edge+20+r*50,2,18);
+  // borde brillante (rojo ↔ violeta, pulso lento, sin flashes)
+  const pul=.55+.25*Math.sin(t*3+j*.35);
+  ctx.globalCompositeOperation='lighter';ctx.globalAlpha=pul;
+  ctx.fillStyle=j%2?'#ff2a5a':'#b04cff';ctx.fillRect(x,edge-(o.top?3:0),w,3);
+  ctx.globalAlpha=pul*.35;ctx.fillStyle='#ff4a7a';ctx.fillRect(x,o.top?edge-14:edge,w,14);
+  ctx.restore();
+}
+function drawFinalDark(){ // la oscuridad se cierra desde los bordes (violeta muy oscuro, nunca negro total)
+  if(!finalMode)return;
+  const k=Math.min(1,finalT/11),r1=Math.max(150,560-360*k),r0=r1*.45;
+  ctx.save();const g=ctx.createRadialGradient(player.x+90,player.y,r0,player.x+90,player.y,r1+260);
+  g.addColorStop(0,'rgba(12,4,26,0)');g.addColorStop(.55,`rgba(12,4,26,${.35+.3*k})`);g.addColorStop(1,`rgba(6,2,14,${.6+.25*k})`);
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);ctx.restore();
+  if(Math.random()<.5){const a=Math.random()*Math.PI*2;particles.push({x:player.x+120+Math.cos(a)*r1,y:player.y+Math.sin(a)*r1*.7,vx:-Math.cos(a)*90-speed*.2,vy:-Math.sin(a)*60,life:.9,max:.9,size:1.5+Math.random()*2,color:Math.random()<.5?'#ff3a6a':'#9a5cff',g:0,kind:'dot'})}
 }
 
 function randAt(n){let v=Math.sin(n*92.31+13.7)*43758.54;return v-Math.floor(v)}
@@ -1152,7 +1242,7 @@ function drawActVoid(alpha){
 function drawCastleFloor(){
   const y=H-FLOOR_H;
   ctx.save();
-  ctx.setTransform(1,0,0,1,0,0); // ignorar shake — suelo anclado al canvas
+  ctx.setTransform(RS,0,0,RS,0,0); // ignorar shake — suelo anclado al canvas
   ctx.globalAlpha=1;
   // relleno opaco siempre
   ctx.fillStyle='#2a2638';
@@ -1269,6 +1359,7 @@ function drawBg(){
 
 /* ---------- dibujo de entidades ---------- */
 function drawObstacle(o){
+  if(o.kind==='wall')return drawWall(o);
   const cx=o.x+o.w/2,cy=o.y+o.h/2;
   // en oscuridad: halo suave para que siluetas sigan legibles
   if(voidMode)glow(cx,cy,Math.max(o.w,o.h)*.7,'#7a5cff',.16);
@@ -1374,28 +1465,73 @@ function playerTilt(){return state==='crashing'?player.rot:Math.max(-.22,Math.mi
 // punto de emisión de la estela (detrás del personaje, a la altura de la cola) en coords mundo
 function broomTip(){
   const rot=playerTilt();
-  const lx=BROOM.ox+4,ly=BROOM.oy+BROOM.hy; // v1.9: punta de la paja de la escoba (relativo a player.(x,y))
+  const lx=(BROOM.ox+3)*BROOM.SC,ly=(BROOM.oy+BROOM.hy)*BROOM.SC; // v1.9.1: punta de la paja (la escoba ES el jugador)
   const c=Math.cos(rot),s=Math.sin(rot);
   return{x:player.x+lx*c-ly*s,y:player.y+lx*s+ly*c,rot};
 }
 /* v1.9: ESCOBA VOLADORA pixel-art. el aparejo (escoba + personaje de perfil) rota entero con la velocidad vertical
    (rotación, no sesgo). la escoba es solo dibujo: el hitbox del jugador NO cambia (PL_HX/PL_HY). la parte del mango
    que cruza el cuerpo se dibuja encima → se lee como montado. */
-const BROOM={fw:128,fh:40,S:2,hy:19,ox:-71,oy:-11,cut:64}; // coords lógicas del sprite; ox/oy = esquina sup-izq relativa a player
+const BROOM={fw:128,fh:40,S:2,hy:19,ox:-50,oy:-19,SC:1.3}; // v1.9.1: escoba SOLA (≈166×52 px); el hitbox NO cambia (PL_HX/PL_HY)
 const RIG_POP=.42;let rigPop=0,cometIgnA=1;
 const COMET_IGN=.55; // s: la estela de la escoba se enciende y se vuelve cometa
-function drawBroom(x,y,rot,part,alpha=1,sc=1){
-  if(!ok('broom32'))return false;
-  const im=IMG.broom32,{fw,fh,S,ox,oy,cut}=BROOM,fr=Math.floor(t*(held?15:9))%4;
-  ctx.save();ctx.globalAlpha*=alpha;ctx.translate(x,y);if(rot)ctx.rotate(rot);if(sc!==1)ctx.scale(sc,sc);
-  ctx.imageSmoothingEnabled=true;
-  if(part==='front')ctx.drawImage(im,(fr*fw+cut)*S,0,(fw-cut)*S,fh*S,ox+cut,oy,fw-cut,fh);
-  else ctx.drawImage(im,fr*fw*S,0,fw*S,fh*S,ox,oy,fw,fh);
+/* v1.9.1: detalle por personaje en la escoba: la atadura toma el color del disfraz y cuelga un dije pixel art
+   (brujo: cristal morado con casquete dorado · hombre lobo: ojo ámbar en mechón gris · vampiro: joya roja con cruz dorada).
+   el dije se mece 1 px por cuadro (a pasos). todo con composición de canvas (sin leer píxeles → sirve en file://). */
+const BROOM_ACC={
+  brujo:{tie:null,pal:{g:'#a8802e',G:'#f6de8c',p:'#5a2a9a',P:'#9a5cff',W:'#ffffff',k:'#1a0c24'},
+    px:['..k..','.kgk.','kgGgk','kpPpk','pPWPp','pPPPp','kpPpk','.kpk.','..k..']},
+  'hombre-lobo':{tie:'#8a8478',pal:{f:'#6a5f52',F:'#c8c0b0',a:'#c86a10',A:'#ffb347',Y:'#fff4d8',w:'#f4ecd8',k:'#1a120c'},
+    px:['.k.k.','kfkfk','fFfFf','FaAaF','faYaf','kFfFk','.kwk.','..w..']},
+  vampiro:{tie:'#c81e32',pal:{g:'#a8802e',G:'#f6de8c',r:'#7a0a18',R:'#e8283c',W:'#ffd0d4',k:'#14040a'},
+    px:['..g..','.gGg.','..g..','.krk.','krRrk','rRWRr','rRRRr','krRrk','.krk.','..k..']}
+};
+const broomCache={};
+function broomSheet(k){
+  if(broomCache[k])return broomCache[k];if(!ok('broom32'))return null;
+  const im=IMG.broom32,S=BROOM.S,fw=BROOM.fw,fh=BROOM.fh,c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;
+  const g=c.getContext('2d');g.imageSmoothingEnabled=false;g.drawImage(im,0,0);
+  const acc=BROOM_ACC[k]||BROOM_ACC.brujo;
+  for(let fr=0;fr<4;fr++){
+    if(acc.tie){ // atadura (x lógico 33..42) teñida con el color del disfraz, conservando la luz del pixel art
+      const bx=(fr*fw+32)*S,bw=11*S,tc=document.createElement('canvas');tc.width=bw;tc.height=fh*S;const tg=tc.getContext('2d');
+      tg.drawImage(im,bx,0,bw,fh*S,0,0,bw,fh*S);tg.globalCompositeOperation='color';tg.fillStyle=acc.tie;tg.fillRect(0,0,bw,fh*S);
+      tg.globalCompositeOperation='destination-in';tg.drawImage(im,bx,0,bw,fh*S,0,0,bw,fh*S);
+      g.clearRect(bx,0,bw,fh*S);g.drawImage(tc,bx,0);
+    }
+    // cordel + dije colgando bajo el mango (x lógico ≈ 58), se mece 1 px a pasos
+    const sw=[0,1,0,-1][fr],cx=fr*fw+58,top=22;
+    g.fillStyle='#2a1a10';for(let j=0;j<3;j++)g.fillRect((cx+(j===2?sw:0))*S,(top+j)*S,S,S);
+    const rows=acc.px,w0=rows[0].length;
+    for(let r=0;r<rows.length;r++)for(let q=0;q<w0;q++){const ch=rows[r][q];if(ch==='.')continue;
+      g.fillStyle=acc.pal[ch]||'#000';g.fillRect((cx+sw-(w0>>1)+q)*S,(top+3+r)*S,S,S)}
+  }
+  return broomCache[k]=c;
+}
+function drawBroom(x,y,rot,alpha=1,sc=1){
+  const im=broomSheet(data.skin);if(!im)return false;
+  const {fw,fh,S,ox,oy,SC}=BROOM,fr=Math.floor(t*(held?15:9))%4;
+  ctx.save();ctx.globalAlpha*=alpha;ctx.translate(x,y);if(rot)ctx.rotate(rot);ctx.scale(SC*sc,SC*sc);
+  ctx.imageSmoothingEnabled=true;if('imageSmoothingQuality' in ctx)ctx.imageSmoothingQuality='high';
+  ctx.drawImage(im,fr*fw*S,0,fw*S,fh*S,ox,oy,fw,fh);
   ctx.restore();return true;
+}
+let broomSilC=null;
+function broomSilhouette(){ // silueta tenue de la escoba (adentro del cometa)
+  if(broomSilC)return broomSilC;const im=broomSheet(data.skin);if(!im)return null;
+  const {fw,fh,S}=BROOM,mk=()=>{const c=document.createElement('canvas');c.width=fw*S;c.height=fh*S;return c};
+  const dark=mk(),dg=dark.getContext('2d');dg.drawImage(im,0,0,fw*S,fh*S,0,0,fw*S,fh*S);dg.globalCompositeOperation='source-in';dg.fillStyle='#3a1670';dg.fillRect(0,0,fw*S,fh*S);
+  const lite=mk(),lg=lite.getContext('2d');lg.drawImage(im,0,0,fw*S,fh*S,0,0,fw*S,fh*S);lg.globalCompositeOperation='source-in';lg.fillStyle='#f0d8ff';lg.fillRect(0,0,fw*S,fh*S);
+  return broomSilC={dark,lite};
+}
+function charPoof(){ // v1.9.1: la escoba se deshace y vuelve el personaje (nube local con colores del disfraz)
+  const cols=[...skinTrail().trail,'#ffffff'];
+  for(let i=0;i<30;i++){const a=i/30*Math.PI*2+Math.random()*.4,sp=50+Math.random()*150;
+    particles.push({x:IDLE_X+(Math.random()-.5)*40,y:IDLE_FEET-110+(Math.random()-.5)*60,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-20,life:.45+Math.random()*.4,max:.85,size:4+Math.random()*6,color:cols[i%cols.length],g:-30,kind:i%3?'soft':'glint',drag:3.2})}
 }
 function broomPoof(start){ // nube de partículas al transformarse (local, nunca flash de pantalla)
   const pal=skinTrail(),cols=[...pal.trail,'#ffffff'];
-  const spots=start?[[IDLE_X,IDLE_FEET-70,30],[player.x-8,player.y,22]]:[[player.x-8,player.y,18]];
+  const spots=start?[[IDLE_X,IDLE_FEET-110,34],[player.x,player.y,26]]:[[player.x,player.y,22]];
   for(const[x0,y0,n]of spots)for(let i=0;i<n;i++){const a=i/n*Math.PI*2+Math.random()*.4,sp=60+Math.random()*170;
     particles.push({x:x0+(Math.random()-.5)*20,y:y0+(Math.random()-.5)*24,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-30,life:.45+Math.random()*.4,max:.85,size:4+Math.random()*7,color:cols[i%cols.length],g:-40,kind:i%3?'soft':'glint',drag:3.2})}
 }
@@ -1407,7 +1543,7 @@ function broomPuff(){ // soplo extra de polvo mágico desde la paja al apretar �
 /* v1.9: IDLE DE FRENTE (menú): hoja real por personaje, cuadros pixel art a escala entera, sin suavizado.
    respiración en 4 cuadros (reposo · inhala · reposo · exhala, con capa/orejas que se mecen), parpadeo cada ~3 s
    (a veces doble) y un flote a pasos de 1 px lógico — animación de sprite, no interpolación. */
-const IDLE_DUR=[.36,.22,.36,.22],IDLE_HOVER=[0,1,2,1],IDLE_X=180,IDLE_FEET=404;
+const IDLE_DUR=[.36,.22,.36,.22],IDLE_HOVER=[0,1,2,1],IDLE_X=124,IDLE_FEET=410;
 function idleFrame(time,sd=0){
   const cyc=IDLE_DUR[0]+IDLE_DUR[1]+IDLE_DUR[2]+IDLE_DUR[3];let u=((time%cyc)+cyc)%cyc,i=0;while(i<3&&u>IDLE_DUR[i]){u-=IDLE_DUR[i];i++}
   const P=3.3,tt=time+sd,k=Math.floor(tt/P),ph=tt-k*P,h=Math.abs(Math.sin(k*91.7+sd*13.1)),at=.9+h*1.9;
@@ -1415,11 +1551,11 @@ function idleFrame(time,sd=0){
   return i+(bl?4:0);
 }
 function drawFrontIdle(g,k,cx,feetY,sc,time,sd=0,still=false){
-  const key='front_'+k;if(!ok(key))return false;
+  const key='idle_'+k;if(!ok(key))return false;
   const im=IMG[key],fw=im.naturalWidth/FRONT_FRAMES,fh=im.naturalHeight,f=still?0:idleFrame(time,sd);
-  const hov=still?0:IDLE_HOVER[Math.floor((time+sd)*3.1)%4]*sc;
-  g.save();g.imageSmoothingEnabled=false;
-  g.drawImage(im,f*fw,0,fw,fh,Math.round(cx-fw*sc/2),Math.round(feetY-fh*sc-hov),fw*sc,fh*sc);g.restore();return true;
+  const hov=still?0:IDLE_HOVER[Math.floor((time+sd)*3.1)%4]*Math.max(1,Math.round(sc));
+  g.save();g.imageSmoothingEnabled=sc<1;if(sc<1&&'imageSmoothingQuality' in g)g.imageSmoothingQuality='high';
+  g.drawImage(im,f*fw,0,fw,fh,Math.round(cx-fw*sc/2),Math.round(feetY-fh*sc-hov),Math.round(fw*sc),Math.round(fh*sc));g.restore();return true;
 }
 /* v1.8.2: animación más clara — resorte de squash/stretch (anticipación al apretar), aleteo con golpe de ala,
    y deformación por tiras: capa/cola flamean atrás, sombrero/orejas se mecen arriba, pies patalean. */
@@ -1490,7 +1626,7 @@ function drawWarped(k,x,y,h,rot,sx,sy){
 /* v1.8.4: COMETA MORADO — dibujo procedural "64-bit": capas de gradientes radiales en mezcla aditiva,
    lóbulos de plasma que orbitan con tonos distintos (violeta, magenta, índigo, lila, toques cian/rosa),
    núcleo blanco-lila, cola-cinta que sigue la historia de la cabeza, remolinos y destellos; silueta del
-   personaje adentro. nada de flashes de pantalla: en el aviso final solo el cometa titila suave. */
+   escoba tenue adentro (v1.9.1, sin jinete). nada de flashes de pantalla: en el aviso final solo el cometa titila suave. */
 function cRad(x,y,r,stops,sx=1,sy=1){ctx.save();ctx.translate(x,y);ctx.scale(sx,sy);const g=ctx.createRadialGradient(0,0,0,0,0,r);for(const[o,c]of stops)g.addColorStop(o,c);ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.fill();ctx.restore()}
 const silCache={};
 function skinSilhouette(k){
@@ -1523,7 +1659,7 @@ function drawComet(){
   cRad(x-8,y,62,[[0,hs(0,100,58,.95)],[.45,hs(-14,95,42,.8)],[.8,hs(-30,90,28,.35)],[1,hs(-30,90,20,0)]],1.25,1);
   ctx.restore();
   // 1) silueta del personaje dentro del orbe (debajo del plasma aditivo → se ve "adentro" del cometa)
-  const sil=skinSilhouette('skin_'+data.skin),silRot=Math.max(-.2,Math.min(.25,player.vy/1000)),silY=y-1+Math.sin(t*5)*1.2;
+  const sil=broomSilhouette(),silRot=Math.max(-.2,Math.min(.25,player.vy/1000)),silY=y-1+Math.sin(t*5)*1.2; // v1.9.1: escoba tenue (sin jinete)
   ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=A;
   // 2) cola: discos suaves sobre la historia de la cabeza (violeta → magenta → índigo → cian en la punta),
   //    con un leve corrimiento de tono por disco para que la cola "tornasole"
@@ -1543,24 +1679,24 @@ function drawComet(){
     cRad(x-4+Math.cos(a)*r*1.3,y+Math.sin(a)*r,(R>20?18:25)+5*Math.sin(t*3.1+i),[[0,hs(o,sa,l,R>20?.6:.42)],[.55,hs(o,sa,l-10,.18)],[1,hs(o,sa,l-20,0)]])}
   ctx.restore();
   // silueta del personaje adentro del orbe (sombra violeta translúcida entre el plasma y el brillo del núcleo)
-  if(sil){const h=48,sc=h/sil.h,dw=sil.dark.width*sc,dh=sil.dark.height*sc;
+  if(sil){const dw=92,dh=dw*sil.dark.height/sil.dark.width;
     ctx.save();ctx.translate(x+3,silY);ctx.rotate(silRot);ctx.imageSmoothingEnabled=true;
-    ctx.globalAlpha=A*.5;ctx.drawImage(sil.dark,-dw/2,-dh/2,dw,dh);ctx.restore()}
+    ctx.globalAlpha=A*.38;ctx.drawImage(sil.dark,-dw*.45,-dh/2,dw,dh);ctx.restore()}
   ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=A;
   // 5) núcleo lila-blanco + borde de luz del orbe
   cRad(x+4,y-3,30,[[0,'rgba(255,248,255,.34)'],[.4,hs(14,100,80,.22)],[1,hs(14,100,70,0)]]);
   cRad(x+12,y-11,12,[[0,'rgba(255,255,255,.7)'],[1,'rgba(255,235,255,0)']]);
   ctx.globalAlpha=A*.5;ctx.strokeStyle=hs(20,100,80,1);ctx.lineWidth=1.6;ctx.beginPath();ctx.ellipse(x-2,y,36,32,0,0,7);ctx.stroke();
   // contorno lila tenue de la silueta
-  if(sil){const h=46,sc=h/sil.h,dw=sil.lite.width*sc,dh=sil.lite.height*sc;
-    ctx.save();ctx.translate(x+3,silY);ctx.rotate(silRot);ctx.imageSmoothingEnabled=true;ctx.globalAlpha=A*.22;ctx.drawImage(sil.lite,-dw/2,-dh/2,dw,dh);ctx.restore()}
+  if(sil){const dw=90,dh=dw*sil.lite.height/sil.lite.width;
+    ctx.save();ctx.translate(x+3,silY);ctx.rotate(silRot);ctx.imageSmoothingEnabled=true;ctx.globalAlpha=A*.16;ctx.drawImage(sil.lite,-dw*.45,-dh/2,dw,dh);ctx.restore()}
   ctx.restore();
   ctx.save();ctx.globalCompositeOperation='lighter';
   // 6) reflejo interior encima de la silueta (se siente "dentro" del plasma)
   ctx.globalAlpha=A*.45;cRad(x+12,y-12,13,[[0,'rgba(255,255,255,.85)'],[1,'rgba(255,230,255,0)']]);
   // 7) remolinos de energía (arcos parciales con brillo, distinto ritmo y tono)
   const SW=[[30,0],[-60,1],[60,2],[-105,3]];
-  for(const[o,k]of SW){ctx.globalAlpha=A*(.55+.2*Math.sin(t*3+k));ctx.strokeStyle=hs(o,100,70,1);ctx.shadowColor=hs(o,100,60,1);ctx.shadowBlur=8;ctx.lineWidth=2.8-k*.4;ctx.lineCap='round';
+  for(const[o,k]of SW){ctx.globalAlpha=A*(.55+.2*Math.sin(t*3+k));ctx.strokeStyle=hs(o,100,70,1);if(!LOWFX){ctx.shadowColor=hs(o,100,60,1);ctx.shadowBlur=8}ctx.lineWidth=2.8-k*.4;ctx.lineCap='round';
     const st=t*(2.3+k*.6)*(k%2?-1:1)+k*1.6;ctx.beginPath();ctx.ellipse(x-4,y,42+k*7,31+k*5,0,st,st+1.3+k*.25);ctx.stroke()}
   ctx.shadowBlur=0;
   // 8) destellos alrededor
@@ -1568,18 +1704,10 @@ function drawComet(){
     const r=40+12*Math.sin(ph*1.3);ctx.globalAlpha=A*tw;sparkle4(x-10+Math.cos(ph)*r*1.35,y+Math.sin(ph)*r,3+4.5*tw,k%3?'#ffffff':COMET_COLS[(k*3)%COMET_COLS.length])}
   ctx.restore();
 }
-function drawRig(alpha=1){ // escoba + personaje de perfil (en carrera)
-  const x=player.x,y=player.y,a=playerAnim(),sk='skin_'+data.skin;
+function drawRig(alpha=1){ // v1.9.1: SOLO la escoba — el personaje se transformó por completo (sin jinete)
+  const x=player.x,y=player.y,a=playerAnim();
   const pk=rigPop>0?1-rigPop/RIG_POP:1,sc=pk<.25?.55:pk<.5?.82:pk<.75?1.1:1; // pop a pasos al transformarse
-  const c=Math.cos(a.lean),s=Math.sin(a.lean),foot=PLAYER_H*.5*(a.sy-1);
-  const bx=x,by=y+a.bob*.6;
-  ctx.save();ctx.globalAlpha*=alpha;
-  if(sc!==1){ctx.translate(x,y);ctx.scale(sc,sc);ctx.translate(-x,-y)}
-  drawBroom(bx,by,a.lean,'back');
-  const px=x-PLAYER_DY*s+foot*s,py=y+PLAYER_DY*c+a.bob-foot*c;
-  if(!(drawWarped(sk,px,py,PLAYER_H,a.lean,a.sx,a.sy)||sprite('player',px,py,PLAYER_H-6,a.lean,a.sx,a.sy)||sprite('gz01',px,py,PLAYER_H-10,a.lean,a.sx,a.sy)))drawFallback(px,py,a.lean);
-  drawBroom(bx,by,a.lean,'front');
-  ctx.restore();
+  drawBroom(x,y+Math.round(a.bob*.6),a.lean,alpha,sc);
 }
 function drawMascot(){
   if(comet>0&&state==='playing'){ // v1.9: la estela de la escoba se enciende y se convierte en el cometa
@@ -1598,18 +1726,18 @@ function drawMascot(){
   const x=player.x,y=player.y;
   if(cometGrace>0&&state==='playing'){const g=cometGrace/COMET_GRACE;glow(x,y-6,72,'#b06cff',.4*g);glow(x,y-6,44,'#ff7ce0',.22*g)}
   const palG=skinTrail(),front=state!=='playing'&&state!=='crashing';
-  if(!front)glow(x,y+PLAYER_DY,58,held?palG.trail[0]:palG.idle[0],held?.45:.3);
+  if(!front)glow(x-8,y,62,held?palG.trail[0]:palG.idle[0],held?.42:.28);
   const sk='skin_'+data.skin;
-  if(front){ // v1.9: menú — personaje DE FRENTE con idle pixel art (respira, parpadea, capa/orejas), flotando en su lugar
-    glow(IDLE_X,IDLE_FEET+24,46,palG.idle[0],.28);
-    ctx.save();ctx.globalAlpha=.35;ctx.fillStyle='#0b0718';ctx.beginPath();ctx.ellipse(IDLE_X,IDLE_FEET+26,34-IDLE_HOVER[Math.floor(t*3.1)%4]*2,6,0,0,7);ctx.fill();ctx.restore();
+  if(front){ // v1.9.1: menú — personaje original de perfil con idle pixel art SNES (respira, parpadea, cola, capa…), en su lugar
+    glow(IDLE_X,IDLE_FEET,60,palG.idle[0],.26);
+    ctx.save();ctx.globalAlpha=.35;ctx.fillStyle='#0b0718';ctx.beginPath();ctx.ellipse(IDLE_X,IDLE_FEET+6,50-IDLE_HOVER[Math.floor(t*3.1)%4]*2,7,0,0,7);ctx.fill();ctx.restore();
     if(drawFrontIdle(ctx,data.skin,IDLE_X,IDLE_FEET,FRONT_SC,t))return;
     const bob=Math.sin(t*2.4)*5; // respaldo si la hoja de frente no cargó: perfil como antes
     if(!(drawWarped(sk,x,y-6+bob,86,0,1,1)||sprite('player',x,y-6+bob,80)||sprite('gz01',x,y-6+bob,74)))drawFallback(x,y+bob,0);
     return;
   }
   // sombra mágica bajo la escoba — se encoge al subir
-  glow(x-14,y+30,40*(1-ANIM.sq*.15),held?palG.trail[1]||palG.trail[0]:palG.idle[1]||palG.idle[0],held?.3:.15);
+  glow(x-14,y+26,40*(1-ANIM.sq*.15),held?palG.trail[1]||palG.trail[0]:palG.idle[1]||palG.idle[0],held?.3:.15);
   if(cometGrace>COMET_GRACE-.5&&state==='playing'){const tip=broomTip(),g=(cometGrace-(COMET_GRACE-.5))/.5;glow(tip.x,tip.y,40,'#b06cff',.55*g);glow(tip.x,tip.y,22,'#ff7ce0',.4*g)} // la paja aún arde morada al volver
   drawRig();
   drawShield();
@@ -1644,7 +1772,7 @@ function drawParticles(){
     const br=p.bright||0;
     ctx.globalAlpha=Math.min(1,a*(.85+br*.5));
     ctx.fillStyle=p.color;
-    if(br>.4){ctx.shadowColor=p.color;ctx.shadowBlur=6+br*10}
+    if(br>.4&&p.kind!=='star'){const ga=ctx.globalAlpha,rr=p.size*(2.2+br*2.4);ctx.globalAlpha=ga*.55;ctx.imageSmoothingEnabled=true;ctx.drawImage(softDot(p.color),p.x-rr,p.y-rr,rr*2,rr*2);ctx.imageSmoothingEnabled=false;ctx.globalAlpha=ga} // v1.9.1: halo pre-renderizado (antes shadowBlur)
     if(p.kind==='star'){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.life*6);starPath(p.size*1.6,p.size*.6,4);ctx.fill();ctx.restore()}
     else{ctx.beginPath();ctx.arc(p.x,p.y,p.size*(.4+.6*a),0,7);ctx.fill()}
     ctx.shadowBlur=0;
@@ -1657,9 +1785,11 @@ function drawTexts(){
   ctx.globalAlpha=1;ctx.textAlign='left';
 }
 function draw(){
+  ctx.setTransform(RS,0,0,RS,0,0);ctx.imageSmoothingEnabled=false;
   ctx.save();
   if(shake>0)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
   drawBg();
+  drawFinalDark(); // v1.9.1: la oscuridad tapa el fondo; escoba, muros y kozmits siguen legibles
   for(const c of sparkles)drawKozmit(c);
   drawParticles();drawMascot();
   // primer plano delante del jugador (profundidad)
@@ -1672,7 +1802,7 @@ function draw(){
   if(state==='playing'||state==='crashing'){
     const ai=currentActIndex(),meta=ACT_META[ai];
     ctx.textAlign='center';ctx.font='800 12px system-ui,sans-serif';ctx.lineWidth=3;ctx.strokeStyle='#110d24cc';
-    ctx.strokeText(meta.name,W/2,28);ctx.fillStyle=meta.lane;ctx.fillText(meta.name,W/2,28);
+    const nm=finalMode?'oscuridad total':meta.name;ctx.strokeText(nm,W/2,28);ctx.fillStyle=finalMode?'#ff8aa8':meta.lane;ctx.fillText(nm,W/2,28);
     if(invulnT>0){ // barra de poder gatuno
       const bw=150,bx=W/2-bw/2,by=40;
       ctx.fillStyle='#110d24cc';ctx.fillRect(bx-2,by-2,bw+4,10);
@@ -1702,7 +1832,7 @@ function draw(){
 /* v1.8.4: hud sobre la franja de piedra (antes el contador quedaba tapado por el suelo): monedas + medidor del cometa */
 function drawFloorHud(){
   if(state!=='playing'&&state!=='crashing')return;
-  ctx.save();ctx.setTransform(1,0,0,1,0,0);
+  ctx.save();ctx.setTransform(RS,0,0,RS,0,0);
   const y=H-FLOOR_H/2+4;
   ctx.fillStyle='#110d24a8';ctx.beginPath();if(ctx.roundRect)ctx.roundRect(8,H-FLOOR_H+12,300,40,10);else ctx.rect(8,H-FLOOR_H+12,300,40);ctx.fill();
   if(!sprite('mas1',28,y-2,24)){ctx.save();ctx.translate(28,y-2);ctx.fillStyle='#d7ff58';starPath(11,5);ctx.fill();ctx.restore()}
@@ -1763,11 +1893,9 @@ function startComet(){
   comet=COMET_DUR;cometGrace=0;cometWarnAt=COMET_WARN;cometTrail=[];Sound.cometOn();Sound.setComet(true);shake=Math.max(shake,4);
   cometBurst(player.x,player.y-4,true);
   texts.push({x:W/2,y:H/2-50,text:'¡cometa morado!',color:'#e2b8ff',life:1.6,max:1.6,size:36,vy:-24});
-  texts.push({x:W/2,y:H/2-20,text:'invencible · rompe obstáculos · imán',color:'#ffd6f6',life:1.6,max:1.6,size:15,vy:-24});
 }
 function endComet(){
   comet=0;cometGrace=COMET_GRACE;cometTrail=[];Sound.cometOff();Sound.setComet(false);cometBurst(player.x,player.y-4,false);rigPop=RIG_POP*.7; // v1.9: vuelve a la escoba
-  texts.push({x:player.x+40,y:player.y-46,text:'fin del cometa',color:'#c8b0ff',life:.9,max:.9,size:16,vy:-40});
 }
 function emitComet(dt){
   const n=Math.random()<.5?4:3;
@@ -1782,12 +1910,12 @@ function smashObstacle(o){ // el obstáculo estalla en trozos + chispas moradas,
   particles.push({x:cx,y:cy,vx:0,vy:0,life:.4,max:.4,kind:'ring',r0:10,r1:Math.max(60,Math.max(o.w,o.h)*.8),color:'#ff9be8',size:2.5});
   Sound.smash();shake=Math.max(shake,5);
   if(mode==='real'){runCoins+=COMET_SMASH;score+=20*COMET_SMASH}
-  texts.push({x:cx,y:cy-30,text:mode==='real'?'¡pum! +'+COMET_SMASH+' ✦':'¡pum!',color:'#ffb8f0',life:.8,max:.8,size:20,vy:-55});
+  texts.push({x:cx,y:cy-30,text:mode==='real'?'+'+COMET_SMASH+' ✦':'✦',color:'#ffb8f0',life:.8,max:.8,size:20,vy:-55});
 }
 function updateParticles(dt){
   for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.life-=dt;if(p.life<=0){particles.splice(i,1);continue}
     if(p.drag){p.vx*=1-p.drag*dt;p.vy*=1-p.drag*dt}p.vy+=(p.g||0)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}
-  if(particles.length>700)particles.splice(0,particles.length-700);
+  const PCAP=LOWFX?320:700;if(particles.length>PCAP)particles.splice(0,particles.length-PCAP);
   for(let i=texts.length-1;i>=0;i--){const f=texts[i];f.life-=dt;f.y+=(f.vy||-40)*dt;if(f.life<=0)texts.splice(i,1)}
   shake=Math.max(0,shake-dt*40);flash=Math.max(0,flash-dt);
 }
@@ -1796,18 +1924,13 @@ function update(dt,now){
   if(runTime>=ACT_DUR*3)enterVoid();
   world+=speed*dt;
   // velocidad: normal hasta acto 3; en oscuridad mucho más agresiva
-  if(voidMode){
-    const voidT=runTime-ACT_DUR*3;
-    speed=Math.min(680,490+voidT*5.2+world*.009);
-  }else{
-    // v1.8.1: arranque más lento / rampa más suave
-    speed=Math.min(500,230+world*.017+runTime*.95);
-  }
+  speed=speedAt(runTime,world,voidMode); // v1.8.1: arranque suave · oscuridad mucho más agresiva (v1.9.1: sigue escalando)
+  if(!finalMode&&runTime>=FINAL_AT)enterFinal();
   if(mode==='real')score+=dt*(speed/8);else{practiceLeft-=dt;$('#timer').textContent=Math.max(0,practiceLeft).toFixed(1)+' seg'}
   $('#distance').textContent=(mode==='practice'?Math.floor(world/12):Math.floor(score))+' m';
   if(invulnT>0){invulnT-=dt;
     if(Math.random()<.5){const a=Math.random()*7;particles.push({x:player.x+Math.cos(a)*48,y:player.y-4+Math.sin(a)*48,vx:-speed*.3,vy:-20,life:.4,max:.4,size:2+Math.random()*2,color:`hsl(${(t*240)%360},100%,70%)`,g:0,kind:'star',bright:.8})}
-    if(invulnT<=0){invulnT=0;Sound.powerEnd();texts.push({x:player.x+30,y:player.y-44,text:'fin del poder',color:'#c8b0ff',life:.8,max:.8,size:16,vy:-40})}}
+    if(invulnT<=0){invulnT=0;Sound.powerEnd()}}
   player.vy+=(held?-980:720)*dt;player.vy=Math.max(-370,Math.min(430,player.vy));player.y+=player.vy*dt;
   // v1.8.4: cometa morado (cola con historia de la cabeza, chispas, aviso suave en los últimos 2 s)
   if(comet>0){comet-=dt;
@@ -1818,10 +1941,11 @@ function update(dt,now){
     if(comet<cometWarnAt&&cometWarnAt>.5){cometWarnAt-=1;Sound.cometWarn()}
     if(comet<=0)endComet();
   }else{if(cometGrace>0)cometGrace=Math.max(0,cometGrace-dt);emitTrail(dt)}
+  if(finalMode)updateFinal(dt);
   spawnIn-=dt;
-  if(spawnIn<=0){
+  if(spawnIn<=0&&!finalMode&&runTime<FINAL_AT-1.2){
     spawnShift=speed*dt;obstacle();spawnShift=0;
-    if(voidMode)spawnIn=Math.max(.38,.72- (runTime-ACT_DUR*3)*.009)+rand()*.26;
+    if(voidMode)spawnIn=Math.max(.33,.72- (runTime-ACT_DUR*3)*.0085)+rand()*(runTime-VOID_AT>40?.2:.26);
     else spawnIn=Math.max(.82,1.7-world/11000-runTime*.0032)+rand()*.55;
   }
   Sound.setStage(currentActIndex());
@@ -1829,7 +1953,7 @@ function update(dt,now){
   for(let i=obs.length-1;i>=0;i--){let o=obs[i];o.x-=speed*dt;
     if(!o.fixed){
       if(o.kind==='menos'){
-        if(o.flying){o.y+=Math.sin(now/150+o.bob)*(voidMode?60:44)*dt;o.x-=(voidMode?80:50)*dt} // espada voladora: más rápida
+        if(o.flying){o.y+=Math.sin(now/150+o.bob)*(voidMode?60:44)*dt;o.x-=(voidMode?80+Math.min(40,(runTime-VOID_AT)*.6):50)*dt} // espada voladora: más rápida
         else if(o.img==='menos6')o.y+=Math.sin(now/220+o.bob)*(voidMode?40:30)*dt;               // relicario flotante
         else o.y+=Math.sin(now/170+o.bob)*(voidMode?55:40)*dt;                                     // fuego fatuo
       }
@@ -1838,18 +1962,17 @@ function update(dt,now){
     if(hit(o)){
       if(TESTLOG&&o.kind==='menos'){TESTLOG.hits.push(runTime);(TESTLOG.hitInfo||(TESTLOG.hitInfo=[])).push({o,rt:runTime,img:o.img,place:o.place,fixed:o.fixed,flying:o.flying,x:o.x,y:o.y,w:o.w,h:o.h,py:player.y,born:o.born})}
       if(o.power){ // v1.6: gato = invencible 3 s
-        invulnT=INVULN_DUR;Sound.power();flash=.12;shake=5;
+        invulnT=INVULN_DUR;Sound.power();shake=5;
         const cx=o.x+o.w/2,cy=o.y+o.h/2;
         for(let k=0;k<30;k++){const a=k/30*Math.PI*2,sp=140+Math.random()*200;particles.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:.6,max:.6,size:2+Math.random()*3,color:['#d7ff58','#b05cff','#ffffff','#66f4ff'][k%4],g:60,kind:k%2?'star':'dot',drag:3})}
-        texts.push({x:cx,y:cy-40,text:'¡poder gatuno! 3 s',color:'#d7ff58',life:1.1,max:1.1,size:24,vy:-50});
         obs.splice(i,1);continue;
       }
       if(comet>0&&o.kind==='menos'){smashObstacle(o);obs.splice(i,1);continue} // v1.8.4: el cometa lo hace añicos
       if(cometGrace>0){o.shielded=true} // gracia tras el cometa: atraviesa sin daño
       else if(invulnT>0){if(!o.shielded){o.shielded=true;Sound.shieldHit()}} // atraviesa sin daño
-      else if(mode==='real'&&!TESTCFG.god){crash();return}
+      else if(mode==='real'&&(!TESTCFG.god||finalMode)){crash();return}
       else
-      if(!o.bumped){o.bumped=true;Sound.bump();shake=4;texts.push({x:player.x+20,y:player.y-36,text:'¡uy! choque',color:'#ff9bd6',life:.7,max:.7,size:18,vy:-50})}
+      if(!o.bumped){o.bumped=true;Sound.bump();shake=4;texts.push({x:player.x+20,y:player.y-36,text:'¡uy!',color:'#ff9bd6',life:.6,max:.6,size:18,vy:-50})}
     }
     if(o.x+o.w<-60)obs.splice(i,1)}
   for(let i=sparkles.length-1;i>=0;i--){let c=sparkles[i];c.x-=speed*dt;
@@ -1871,7 +1994,6 @@ function update(dt,now){
           Sound.chainPerfect(chainStreak);
           const sz=18+Math.min(10,ch.total*.8+ch.diff*6);
           texts.push({x:Math.min(W-140,c.x+20),y:c.y-44,text:'¡cadena perfecta! +'+chainBonus+' ✦',color:'#ffe066',life:1.25,max:1.25,size:sz,vy:-50});
-          if(chainStreak>1)texts.push({x:Math.min(W-140,c.x+20),y:c.y-20,text:'racha ×'+chainStreak,color:'#d8b4ff',life:1.1,max:1.1,size:15,vy:-50});
           for(let k=0;k<14;k++){const a=k/14*Math.PI*2;particles.push({x:c.x,y:c.y,vx:Math.cos(a)*190,vy:Math.sin(a)*190,life:.55,max:.55,size:3+Math.random()*2,color:k%2?'#ffe9a0':'#ffffff',g:0,kind:'glint',drag:2.5})}
           if(TESTLOG)TESTLOG.done[c.chainId]=runTime;
           delete chains[c.chainId];
@@ -1879,7 +2001,7 @@ function update(dt,now){
       }
       if(mode==='real'){runCoins+=gained;score+=20*gained}
       // v1.8.4: medidor del cometa — cada objeto recogido fuera del cometa suma 1; a los 50 → ¡cometa morado!
-      if(comet<=0&&!TESTCFG.noComet&&++cometMeter>=COMET_EVERY){cometMeter=0;startComet()}
+      if(comet<=0&&!TESTCFG.noComet&&!finalMode&&++cometMeter>=COMET_EVERY){cometMeter=0;startComet()}
       const mm=masByN(c.v);
       Sound.collect(c.v);burst(c.x,c.y,c.v);
       const label=mode==='real'?(c.v>=3&&!c.chainId?`+${c.v} ✦ ${mm.name}`:`+${c.v} ✦`):'✦';
@@ -1896,7 +2018,7 @@ function update(dt,now){
           runCoins=Math.max(0,runCoins-pen);
           score=Math.max(0,score-12*pen);
         }
-        texts.push({x:Math.max(60,c.x),y:c.y-24,text:'cadena rota −'+pen+' ✦',color:'#ff6b9a',life:.9,max:.9,size:16,vy:-40});
+        texts.push({x:Math.max(60,c.x),y:c.y-24,text:'−'+pen+' ✦',color:'#ff6b9a',life:.9,max:.9,size:16,vy:-40});
         delete chains[c.chainId];
       }
       sparkles.splice(i,1)}
@@ -1905,8 +2027,8 @@ function update(dt,now){
     if(player.y<30){player.y=30;player.vy=Math.abs(player.vy)*.45}
     if(player.y>H-FLOOR_H-24){player.y=H-FLOOR_H-24;player.vy=-Math.abs(player.vy)*.45}
   }
-  if(mode==='real'&&!TESTCFG.god&&(player.y<14||player.y>H-FLOOR_H-4)){crash();return}
-  if(TESTCFG.god){player.y=Math.max(14,Math.min(H-FLOOR_H-4,player.y))}
+  if(mode==='real'&&(!TESTCFG.god||finalMode)&&(player.y<14||player.y>H-FLOOR_H-4)){crash();return}
+  if(TESTCFG.god&&!finalMode){player.y=Math.max(14,Math.min(H-FLOOR_H-4,player.y))}
   if(mode==='practice'){
     if(player.y<30){player.y=30;player.vy=Math.abs(player.vy)*.45}
     if(player.y>H-FLOOR_H-24){player.y=H-FLOOR_H-24;player.vy=-Math.abs(player.vy)*.45} // escoba apoyada sobre el suelo
@@ -1926,11 +2048,22 @@ function idle(dt){
   for(let i=obs.length-1;i>=0;i--){obs[i].x-=dt*120;if(obs[i].x<-80)obs.splice(i,1)}
   for(let i=sparkles.length-1;i>=0;i--){sparkles[i].x-=dt*120;if(sparkles[i].x<-40)sparkles.splice(i,1)}
 }
+let pauseReason=null,resumeRamp=0,layoutState='',perfAcc=0,perfN=0;const RAMP=.8;
+const FRAMESTAT={n:0,sum:0,max:0,work:0};
 function frame(now){
   if(TESTCFG.paused){last=now;requestAnimationFrame(frame);return}
-  const dt=Math.min(.04,(now-last)/1000);last=now;t+=dt;
-  if(state==='playing')update(dt,now);else if(state==='crashing')updateCrash(dt);else idle(dt);
+  const w0=performance.now();
+  let raw=Math.min(.1,Math.max(0,(now-last)/1000));last=now;
+  if(state!==layoutState){layoutState=state;layout()}
+  if(pauseReason&&state==='playing'){draw();requestAnimationFrame(frame);return} // pausa: sin avanzar el juego
+  let k=1;if(resumeRamp>0){resumeRamp=Math.max(0,resumeRamp-raw);k=1-resumeRamp/RAMP} // reanudar suave tras una pausa
+  const dt=Math.min(.04,raw);t+=dt;
+  if(state==='playing'){let rem=raw*k;while(rem>1e-6&&state==='playing'){const h=Math.min(1/60,rem);update(h,now);rem-=h}}
+  else if(state==='crashing')updateCrash(dt);else idle(dt);
   animTick(dt);updateParticles(dt);draw();drawMenuIdles();
+  // calidad adaptativa: si el promedio pasa de ~24 ms, bajar la escala de render (nunca de 1)
+  perfAcc+=raw;perfN++;if(perfN>=90){if(perfAcc/perfN>.021&&RS>1){rsCap=Math.max(1,RS-.5);fitCanvas()}perfAcc=0;perfN=0}
+  FRAMESTAT.n++;FRAMESTAT.sum+=raw;FRAMESTAT.max=Math.max(FRAMESTAT.max,raw);FRAMESTAT.work+=performance.now()-w0;
   requestAnimationFrame(frame);
 }
 
@@ -1941,59 +2074,148 @@ function paintSkins(){
   const lbl=SKINS.find(([k])=>k===data.skin);$('#skinName').textContent=lbl?lbl[1]:'';
 }
 function setSkin(k,fx=true){
-  if(k===data.skin||!SKINS.some(([s])=>s===k))return;data.skin=k;save();paintSkins();
-  if(fx){Sound.init();Sound.ui();burst(IDLE_X,IDLE_FEET-70,3)}
+  if(k===data.skin||!SKINS.some(([s])=>s===k))return;data.skin=k;save();paintSkins();broomSilC=null;
+  if(fx){Sound.init();Sound.ui();burst(IDLE_X,IDLE_FEET-110,3)}
 }
 SKINS.forEach(([k,label])=>{const b=document.createElement('button');b.type='button';b.className='skin';b.dataset.skin=k;b.title=label;b.setAttribute('aria-label','skin '+label);
-  const cv=document.createElement('canvas');cv.width=cv.height=96;cv.className='front';b.appendChild(cv); // v1.9: miniatura de frente
+  const cv=document.createElement('canvas');cv.width=cv.height=132;cv.className='front';b.appendChild(cv); // v1.9.1: miniatura = personaje original (idle)
   b.addEventListener('click',()=>{setSkin(k);b.blur()});picker.appendChild(b)});
 // v1.9: héroe de la tarjeta y miniaturas = idle de frente (la miniatura elegida se anima)
 function drawMenuIdles(){
   if($('#overlay').classList.contains('hidden'))return;
-  if(hero&&hero.getContext){const g=hero.getContext('2d');g.clearRect(0,0,hero.width,hero.height);drawFrontIdle(g,data.skin,hero.width/2,hero.height-2,2,t,.7)}
-  picker.querySelectorAll('canvas.front').forEach(cv=>{const k=cv.parentNode.dataset.skin,g=cv.getContext('2d');g.clearRect(0,0,cv.width,cv.height);drawFrontIdle(g,k,cv.width/2,cv.height-2,1,t,k.length*.37,k!==data.skin)});
+  if(hero&&hero.getContext){const g=hero.getContext('2d');g.clearRect(0,0,hero.width,hero.height);drawFrontIdle(g,data.skin,hero.width/2,hero.height-2,1,t,.7)}
+  picker.querySelectorAll('canvas.front').forEach(cv=>{const k=cv.parentNode.dataset.skin,g=cv.getContext('2d');g.clearRect(0,0,cv.width,cv.height);drawFrontIdle(g,k,cv.width/2,cv.height-1,1,t,k.length*.37,k!==data.skin)});
 }
 paintSkins();
 function cycleSkin(d){const i=SKINS.findIndex(([k])=>k===data.skin);setSkin(SKINS[(i+d+SKINS.length)%SKINS.length][0])}
 
 /* ---------- controles ---------- */
 const muteBtn=$('#mute'),volMusic=$('#volMusic'),volSfx=$('#volSfx');
-function paintMute(){const m=Sound.muted;muteBtn.textContent=m?'🔇 silencio':'🔊 sonido';muteBtn.classList.toggle('off',m);muteBtn.setAttribute('aria-pressed',String(m))}
+function paintMute(){const m=Sound.muted;const mm=$('#mMute');if(mm){mm.textContent=m?'🔇':'🔊';mm.setAttribute('aria-pressed',String(m))}muteBtn.textContent=m?'🔇 silencio':'🔊 sonido';muteBtn.classList.toggle('off',m);muteBtn.setAttribute('aria-pressed',String(m))}
 function paintVol(){if(volMusic)volMusic.value=String(Math.round(Sound.musicVol*100));if(volSfx)volSfx.value=String(Math.round(Sound.sfxVol*100))}
 muteBtn.addEventListener('click',()=>{Sound.init();Sound.toggle();paintMute();Sound.ui();muteBtn.blur()});
+{const mm=$('#mMute');if(mm)mm.addEventListener('click',()=>{Sound.init();Sound.toggle();paintMute();Sound.ui();mm.blur()})}
 if(volMusic)volMusic.addEventListener('input',()=>{Sound.init();Sound.setMusicVol(+volMusic.value/100)});
 if(volSfx)volSfx.addEventListener('input',()=>{Sound.init();Sound.setSfxVol(+volSfx.value/100);Sound.ui()});
 paintMute();paintVol();
-['pointerdown','keydown','touchstart'].forEach(ev=>window.addEventListener(ev,()=>Sound.init(),{passive:true}));
-$('#practice').addEventListener('click',()=>prepareRun('practice'));
-$('#start').addEventListener('click',()=>prepareRun('real'));
-const boostBtn=$('#boost');
-const boostOn=e=>{e.preventDefault();if(state==='playing'){setHeld(true);try{boostBtn.setPointerCapture(e.pointerId)}catch(err){}}};
-const boostOff=e=>{e.preventDefault();setHeld(false)};
-boostBtn.addEventListener('pointerdown',boostOn);boostBtn.addEventListener('pointerup',boostOff);boostBtn.addEventListener('pointercancel',boostOff);
-boostBtn.addEventListener('lostpointercapture',()=>setHeld(false));
-canvas.addEventListener('pointerdown',e=>{e.preventDefault();if(state==='playing'){setHeld(true);try{canvas.setPointerCapture(e.pointerId)}catch(err){}}});
-canvas.addEventListener('pointerup',()=>setHeld(false));canvas.addEventListener('pointercancel',()=>setHeld(false));
+['pointerdown','keydown','touchstart','touchend','click'].forEach(ev=>window.addEventListener(ev,()=>Sound.init(),{passive:true})); // iOS: desbloqueo de audio dentro del gesto
+$('#practice').addEventListener('click',()=>{goFullscreen();prepareRun('practice')});
+$('#start').addEventListener('click',()=>{goFullscreen();prepareRun('real')});
+/* v1.9.1 (móvil): mantener para volar en TODA el área (lienzo, botón «vuela» y en celular cualquier parte de la pantalla
+   durante la carrera). multitáctil: vuela mientras quede al menos un dedo; se suelta con pointerup/cancel, touchend sin
+   dedos, blur, pestaña oculta o pausa → la escoba nunca queda pegada subiendo. */
+const boostBtn=$('#boost'),touchIds=new Set();let keyHeld=false;
+const UI_SEL='button:not(#boost),input,a,select,label,.story,.rotate,.overlay:not(.hidden)';
+function syncHeld(){setHeld(!pauseReason&&(keyHeld||touchIds.size>0))}
+function releaseAll(){touchIds.clear();keyHeld=false;setHeld(false)}
+function flyDown(e){
+  if(state!=='playing'||pauseReason)return;
+  if(e.target&&e.target.closest&&e.target.closest(UI_SEL))return;
+  if(e.pointerType==='mouse'&&e.button!==0)return;
+  if(!IS_TOUCH&&!(e.target.closest&&e.target.closest('.gamebox')))return; // en PC: solo dentro del juego
+  if(e.cancelable)e.preventDefault();
+  touchIds.add(e.pointerId);syncHeld();
+}
+function flyUp(e){if(touchIds.delete(e.pointerId))syncHeld()}
+document.addEventListener('pointerdown',flyDown,{passive:false});
+document.addEventListener('pointerup',flyUp);document.addEventListener('pointercancel',flyUp);
+document.addEventListener('touchstart',e=>{if((state==='playing'||state==='crashing')&&e.cancelable&&!(e.target.closest&&e.target.closest(UI_SEL)))e.preventDefault()},{passive:false}); // sin scroll/zoom/lupa
+document.addEventListener('touchmove',e=>{if((state==='playing'||state==='crashing'||document.body.classList.contains('compact'))&&e.cancelable&&!(e.target.closest&&e.target.closest('.overlay,.story')))e.preventDefault()},{passive:false});
+document.addEventListener('touchend',e=>{if(e.touches.length===0&&touchIds.size){touchIds.clear();syncHeld()}},{passive:true});
+document.addEventListener('touchcancel',e=>{if(e.touches.length===0){touchIds.clear();syncHeld()}},{passive:true});
+document.addEventListener('contextmenu',e=>{if(state==='playing'||e.target===canvas||e.target.closest('#boost'))e.preventDefault()});
+document.addEventListener('gesturestart',e=>e.preventDefault()); // iOS: sin pellizco
+window.addEventListener('blur',releaseAll);
 window.addEventListener('keydown',e=>{
-  if(['Space','ArrowUp','KeyW'].includes(e.code)){e.preventDefault();if(state==='playing'&&!e.repeat)setHeld(true)}
+  if(storyOpen){if(['Space','Enter','Escape','ArrowUp','KeyW'].includes(e.code)){e.preventDefault();if(!e.repeat)storyKey(e.code)}return} // v1.9.1: historia abierta
+  if(['Space','ArrowUp','KeyW'].includes(e.code)){e.preventDefault();if(state==='playing'&&!e.repeat){keyHeld=true;syncHeld()}}
   if(e.code==='Enter'&&e.target.tagName!=='BUTTON'&&state!=='playing'&&state!=='crashing'&&(BETA||data.lives>0)){e.preventDefault();prepareRun('real')}
   if(e.code==='KeyM'){Sound.init();Sound.toggle();paintMute()}
   if((e.code==='ArrowLeft'||e.code==='ArrowRight')&&state!=='playing'&&state!=='crashing'){e.preventDefault();cycleSkin(e.code==='ArrowLeft'?-1:1)}
 });
-window.addEventListener('keyup',e=>{if(['Space','ArrowUp','KeyW'].includes(e.code))setHeld(false)});
-document.addEventListener('visibilitychange',()=>{if(document.hidden){setHeld(false);Sound.suspend()}else Sound.resume()});
+window.addEventListener('keyup',e=>{if(['Space','ArrowUp','KeyW'].includes(e.code)){keyHeld=false;syncHeld()}});
+document.addEventListener('visibilitychange',()=>{ // pestaña oculta → pausa la carrera; al volver se reanuda suave
+  if(document.hidden){releaseAll();if(state==='playing'&&!pauseReason)pauseReason='hidden';Sound.suspend()}
+  else{if(pauseReason==='hidden'){pauseReason=null;resumeRamp=RAMP}Sound.resume();layout()}});
+window.addEventListener('pageshow',()=>{Sound.resume();layout()});window.addEventListener('focus',()=>Sound.resume());
+/* v1.9.1 (móvil): diseño. en teléfono horizontal el juego ocupa toda la pantalla (ajustado 9:5 con franjas, respetando
+   notch/barra de inicio) también en el menú; en vertical el menú es la página normal y la carrera se centra ajustada al
+   ancho, con un aviso suave «gira tu teléfono» (pausa) que se puede descartar con «jugar así». */
+const gameboxEl=document.querySelector('.gamebox'),rotateEl=$('#rotate'),safeProbe=document.createElement('div');
+safeProbe.style.cssText='position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+document.body.appendChild(safeProbe);
+let rotOK=false;
+function layout(){
+  const vv=window.visualViewport,vw=vv?vv.width:innerWidth,vh=vv?vv.height:innerHeight,land=vw>=vh;
+  const phone=IS_TOUCH&&Math.min(vw,vh)<=600,playing=state==='playing'||state==='crashing',B=document.body.classList;
+  B.toggle('touch',IS_TOUCH);B.toggle('compact',phone&&land);B.toggle('portrait',phone&&!land);B.toggle('playing',playing);
+  const fit=phone&&(land||playing);B.toggle('fit',fit);
+  if(fit){const cs=getComputedStyle(safeProbe),st=parseFloat(cs.paddingTop)||0,sr=parseFloat(cs.paddingRight)||0,sb=parseFloat(cs.paddingBottom)||0,sl=parseFloat(cs.paddingLeft)||0;
+    const aw=vw-sl-sr,ah=vh-st-sb,w=Math.floor(Math.min(aw,ah*W/H)),h=Math.floor(w*H/W);
+    gameboxEl.style.width=w+'px';gameboxEl.style.height=h+'px';gameboxEl.style.left=Math.round(sl+(aw-w)/2)+'px';gameboxEl.style.top=Math.round(st+(ah-h)/2)+'px';
+    if(!playing)window.scrollTo(0,0);
+  }else{gameboxEl.style.width=gameboxEl.style.height=gameboxEl.style.left=gameboxEl.style.top=''}
+  const needRot=phone&&!land&&state==='playing'&&!rotOK;
+  if(rotateEl)rotateEl.classList.toggle('hidden',!needRot);
+  if(needRot&&!pauseReason){pauseReason='rotate';releaseAll()}
+  if(!needRot&&pauseReason==='rotate'){pauseReason=null;resumeRamp=RAMP}
+  fitCanvas();
+}
+['resize','orientationchange','fullscreenchange'].forEach(ev=>window.addEventListener(ev,()=>setTimeout(layout,60)));
+if(window.visualViewport)visualViewport.addEventListener('resize',()=>layout());
+const rotOkBtn=$('#rotOk');if(rotOkBtn)rotOkBtn.addEventListener('click',()=>{rotOK=true;Sound.init();layout()});
+// android: pantalla completa (y horizontal) al empezar, donde el navegador lo permite; iOS no tiene esa API → web app
+function goFullscreen(){
+  if(!IS_TOUCH||IS_IOS||document.fullscreenElement||!document.documentElement.requestFullscreen)return;
+  try{document.documentElement.requestFullscreen({navigationUI:'hide'}).then(()=>{try{screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape').catch(()=>{})}catch(e){}}).catch(()=>{})}catch(e){}
+}
 // cambio de día con la página abierta
-setInterval(()=>{if(data.day!==dateKey()&&state!=='playing'&&state!=='crashing'){data={...blank(),wallet:data.wallet,best:data.best,skin:data.skin};save();ui();$('#start').disabled=false}},30000);
+setInterval(()=>{if(data.day!==dateKey()&&state!=='playing'&&state!=='crashing'){data={...blank(),wallet:data.wallet,best:data.best,skin:data.skin,storySeen:data.storySeen||0};save();ui();$('#start').disabled=false}},30000);
+
+/* ---------- v1.9.1: historia de apertura (una vez por dispositivo; botón «historia» la vuelve a mostrar) ---------- */
+const STORY=[
+  'es noche de hallogeekz y el tanuki morado de geekz se pone su disfraz.',
+  'pero un hechizo travieso lo convierte en una escoba encantada… ¡y sale volando!',
+  'cruza el bosque tenebroso, el cementerio y el infierno juntando kozmits ✦.',
+  'con 50 la escoba arde en un cometa morado.',
+  'al final espera la oscuridad: nadie ha sobrevivido a ella. ¿hasta dónde llegarás?'
+];
+let storyOpen=false,storyT=0,storyTimer=0;
+const storyEl=$('#story'),storyTxt=$('#storyText'),storyBtn=$('#storySkip');
+const STORY_CPS=46; // letras por segundo (máquina de escribir)
+function storyLen(){return STORY.reduce((a,l)=>a+l.length,0)+STORY.length*10}
+function storyPaint(){
+  if(!storyTxt)return;let n=Math.floor(storyT*STORY_CPS),html='';
+  for(const l of STORY){if(n<=0)break;const k=Math.min(l.length,n);html+='<p>'+l.slice(0,k).replace(/&/g,'&amp;').replace(/</g,'&lt;')+(k<l.length?'<span class="caret">▌</span>':'')+'</p>';n-=l.length+10}
+  storyTxt.innerHTML=html;
+  const done=storyT*STORY_CPS>=storyLen();if(storyBtn)storyBtn.textContent=done?'¡a volar!':'saltar';
+}
+function openStory(){
+  if(!storyEl||state==='playing'||state==='crashing')return;
+  storyOpen=true;storyT=0;storyEl.classList.remove('hidden');storyPaint();
+  clearInterval(storyTimer);storyTimer=setInterval(()=>{storyT+=1/30;storyPaint();if(storyT*STORY_CPS>=storyLen())clearInterval(storyTimer)},1000/30);
+}
+function closeStory(){
+  if(!storyEl)return;storyOpen=false;clearInterval(storyTimer);storyEl.classList.add('hidden');
+  if(!data.storySeen){data.storySeen=1;save()}
+}
+function storyFinish(){storyT=storyLen()/STORY_CPS+.01;clearInterval(storyTimer);storyPaint()}
+function storyKey(code){if(code==='Escape'||storyT*STORY_CPS>=storyLen())closeStory();else storyFinish()}
+if(storyBtn)storyBtn.addEventListener('click',()=>{Sound.init();Sound.ui();closeStory()});
+if(storyEl)storyEl.addEventListener('pointerdown',e=>{if(e.target===storyBtn)return;e.preventDefault();storyKey('Click')});
+const storyOpenBtn=$('#storyBtn');if(storyOpenBtn)storyOpenBtn.addEventListener('click',()=>{Sound.init();Sound.ui();openStory();storyOpenBtn.blur()});
 
 ui();
-panel('KOZMIK<br>RUN','elige brujo, vampiro u hombre lobo, súbete a la escoba y vuela 30 s por acto (bosque → cementerio → infierno). a los 90 s llega la oscuridad. junta monedas, gemas, grimorios, llaves, corazones y pociones ✦ (cuanto más raro, más vale). esquiva llamas, tumbas, enredaderas, espadas y relicarios. toca un gato: 3 s invencible. cada 50 objetos tu escoba se enciende: ¡cometa morado! (9 s invencible, rompe obstáculos). junta cadenas enteras: ¡cadena perfecta!',
+panel('KOZMIK <br>RUN','elige tu disfraz y conviértete en la escoba encantada. junta kozmits ✦ y cadenas enteras, esquiva lo que venga… y aguanta en la oscuridad todo lo que puedas.',
   'práctica · 7 seg',(BETA||data.lives>0)?'empezar carrera':'sin carreras por hoy','mantén «vuela», la barra espaciadora o cualquier parte del juego. la práctica es ilimitada; las carreras reales son 3 por día.');
+layout();loadProgress();
+if(!data.storySeen)openStory(); // v1.9.1: la historia se muestra sola la primera vez en este dispositivo
 // gancho solo para pruebas automáticas (index.html?test): no afecta al juego normal
 if(/[?&]test\b/.test(location.search))window.__kr={Sound,
   jump(rt){runTime=rt;if(rt>=ACT_DUR*3)enterVoid()},clear(){obs=[];sparkles=[];particles=[];texts=[]},
   spawnDemo(){obs=[];const mk=(img,x,y,h,extra={})=>{const im=IMG[img],w=h*im.naturalWidth/im.naturalHeight;obs.push({x,y,w,h,kind:'menos',img,n:0,place:'float',fixed:true,bob:x*.01,flip:1,...extra})};
     mk('menos2',300,140,112);mk('menos2',430,300,60,{flying:true,w:112,h:30});mk('menos4a',560,H-FLOOR_H-112,112,{place:'ground'});mk('menos6',640,40,130,{place:'ceil'});mk('menos1a',520,0,140,{place:'ceil'});mk('menos3',180,330,90)},
-  state:()=>({state,runTime,voidMode,act:currentActIndex(),mode:Sound.mode,comet,cometGrace,cometMeter,runCoins,chainStreak,runSeed}),
+  state:()=>({state,runTime,voidMode,finalMode,finalT,story:storyOpen,storySeen:data.storySeen||0,act:currentActIndex(),mode:Sound.mode,comet,cometGrace,cometMeter,runCoins,chainStreak,runSeed}),
   idleFrame,rigPop:v=>{rigPop=v},setT:v=>{t=v},skin:k=>setSkin(k,false),start:k=>{state='ready';prepareRun(k||'real')},hold(v){held=v},
   player(y){player.y=y;player.vy=0},
   // v1.8.4: pruebas del cometa y de las cadenas (loop pausable, paso fijo, registro de cadenas/choques)
@@ -2002,9 +2224,10 @@ if(/[?&]test\b/.test(location.search))window.__kr={Sound,
   S(){return{state,runTime,world,speed,player,held,voidMode,comet,cometMeter,obs,sparkles,chains,TESTLOG,practiceLeft}},
   setHeld(v){held=!!v},seed(v){seed=v>>>0},practice(v){practiceLeft=v},meter(v){cometMeter=v},
   comet(left){startComet();if(left!=null)comet=left},cometOff(){comet=0;cometGrace=0;cometTrail=[];Sound.setComet(false)},clearTexts(){texts=[]},
-  warp(rt){let r=0,w=0,sp=230,vm=false;while(r<rt-1e-9){r+=1/60;if(r>=ACT_DUR*3)vm=true;w+=sp/60;sp=vm?Math.min(680,490+(r-ACT_DUR*3)*5.2+w*.009):Math.min(500,230+w*.017+r*.95)}
-    runTime=r;world=w;speed=sp;voidMode=false;if(vm)enterVoid();obs=[];sparkles=[];chains={};lastChainEnd=null;spawnIn=.25},
+  warp(rt){let r=0,w=0,sp=230,vm=false;while(r<rt-1e-9){r+=1/60;if(r>=ACT_DUR*3)vm=true;w+=sp/60;sp=speedAt(r,w,vm)}
+    runTime=r;world=w;speed=sp;voidMode=false;finalMode=false;finalT=0;if(vm)enterVoid();obs=[];sparkles=[];chains={};lastChainEnd=null;spawnIn=.25},
   step(dt,n=1){for(let i=0;i<n;i++){testNow+=dt*1000;t+=dt;if(state==='playing')update(dt,testNow);else if(state==='crashing')updateCrash(dt);else idle(dt);animTick(dt);updateParticles(dt);if(state!=='playing')break}},
+  story(v){if(v)openStory();else closeStory()},frameStat(reset){const r={...FRAMESTAT,RS,pauseReason,held};if(reset){FRAMESTAT.n=FRAMESTAT.sum=FRAMESTAT.max=FRAMESTAT.work=0}return r},layout(){layout();return{RS,cls:document.body.className}},storyDone(){storyFinish()},
   pathHits,hitBox,draw(){draw()},spawnChain(c=250,g=200){return spawnSkillChain(c,g)}};
 let testNow=0;
 requestAnimationFrame(frame);
