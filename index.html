@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#110d24"><title>KOZMIK RUN — geekz</title>
+<link rel="stylesheet" href="style.css?v=1.9">
+</head>
+<body><main class="shell">
+<header>
+  <div><div class="brand"><span class="gz">geekz</span> <span>✦</span> KOZMIK RUN</div><div class="tag">desafío arcade diario · temporada <b>hallogeekz</b></div></div>
+  <div class="stats">
+    <div class="pill">vidas <b id="lives">3</b></div>
+    <div class="pill">kozmits <b id="wallet">0</b></div>
+    <div class="pill">récord <b id="best">0</b></div>
+    <button class="pill mute" id="mute" type="button" aria-pressed="false" title="silenciar (tecla m)">🔊 sonido</button>
+  </div>
+</header>
+<div class="audiobar" id="audiobar" aria-label="volumen">
+  <label class="vol">música <input type="range" id="volMusic" min="0" max="100" value="100" step="1"></label>
+  <label class="vol">efectos <input type="range" id="volSfx" min="0" max="100" value="85" step="1"></label>
+  <span class="volhint">ajusta a gusto · m = silencio</span>
+</div>
+<section class="gamebox">
+  <canvas id="game" width="900" height="500" aria-label="KOZMIK RUN, juego de desplazamiento lateral"></canvas>
+  <div class="hud">
+    <div><span id="distanceLabel">distancia</span><strong id="distance">0 m</strong></div>
+    <div style="text-align:right"><span id="modeLabel">carrera de hoy</span><strong id="runNo">1 / 3</strong><span id="timer" class="timer"></span></div>
+  </div>
+  <div id="overlay" class="overlay"><div class="card">
+    <canvas class="hero" id="hero" width="200" height="200" aria-hidden="true"></canvas>
+    <div class="eyebrow">un arcade original de geekz</div>
+    <h1 id="title">KOZMIK<br>RUN</h1>
+    <p id="message">elige brujo, vampiro u hombre lobo y súbete a la escoba. 30 s por acto; a los 90 s llega la oscuridad. junta objetos ✦ (más raros = más valiosos); toca un gato para ser invencible 3 s.</p>
+    <div class="actions"><button class="btn secondary" id="practice">práctica · 7 seg</button><button class="btn" id="start">empezar carrera</button></div>
+    <div class="skinpick"><div class="skinlabel">elige tu personaje · <b id="skinName">brujo</b></div><div class="skins" id="skins"></div></div>
+    <p class="sub" id="hint">mantén «vuela» para subir; suelta para bajar • la práctica es ilimitada</p>
+  </div></div>
+  <button id="boost" class="boost hidden" aria-label="mantén para subir">vuela<span>mantén</span></button>
+</section>
+<div class="bottom">
+  <section class="panel"><h3>premios de hoy</h3><div class="rewards">
+    <div class="reward"><strong>150 ✦</strong><small>pack de stickers digitales</small></div>
+    <div class="reward"><strong>400 ✦</strong><small>sticker físico · canjéalo en tienda</small></div>
+    <div class="reward"><strong>900 ✦</strong><small>participación en sorteo de coleccionable</small></div>
+  </div></section>
+  <section class="panel"><h3>cómo funciona</h3>
+    <p>junta kozmits ✦ y recorre más distancia para sumar puntos. cada carrera trae un recorrido nuevo al azar (obstáculos, cadenas, objetos y gatos) y la dificultad sube mientras avanzas. tus tres carreras se reinician a medianoche.</p>
+    <div class="legend">
+      <span>coleccionables (más raro = más ✦):</span>
+      <span><img src="assets/mas1.png" alt="moneda lunar" onerror="this.remove()">1 ✦</span>
+      <span><img src="assets/mas2.png" alt="gema amatista" onerror="this.remove()">2 ✦</span>
+      <span><img src="assets/mas3.png" alt="grimorio" onerror="this.remove()">3 ✦</span>
+      <span><img src="assets/mas4.png" alt="llave calavera" onerror="this.remove()">4 ✦</span>
+      <span><img src="assets/mas6a.png" alt="corazón" onerror="this.remove()"><img src="assets/mas6b.png" alt="corazón agrietado" onerror="this.remove()"><img src="assets/mas6c.png" alt="corazón encantado" onerror="this.remove()">6 ✦</span>
+      <span><img src="assets/mas7.png" alt="poción de maná" onerror="this.remove()">7 ✦</span>
+      <span><img src="assets/mas8.png" alt="poción de vida" onerror="this.remove()">8 ✦</span>
+      <span>cadenas de monedas ✦ (olas · subidas · picadas · arcos): júntalas enteras → ¡cadena perfecta!</span>
+      <span>cada 50 objetos ✦: tu estela de escoba se enciende → <b>cometa morado</b> 9 s (invencible, rompe obstáculos, imán)</span>
+      <span>poder: <img src="assets/cat_sit.png" alt="gato negro" onerror="this.remove()"><img src="assets/cat_bat.png" alt="gato murciélago" onerror="this.remove()"> invencible 3 s</span>
+      <span>obstáculos (de chico a grande): <img src="assets/menos0.png" alt="llama pequeña" onerror="this.remove()"><img src="assets/menos1a.png" alt="enredadera" onerror="this.remove()"><img src="assets/menos2.png" alt="espada" onerror="this.remove()"><img src="assets/menos3.png" alt="llama mediana" onerror="this.remove()"><img src="assets/menos4a.png" alt="tumba" onerror="this.remove()"><img src="assets/menos5.png" alt="llama grande" onerror="this.remove()"><img src="assets/menos6.png" alt="relicario" onerror="this.remove()"></span>
+    </div>
+  </section>
+</div>
+<p class="footer">prototipo: los puntos y el límite diario se guardan en este dispositivo. el canje en tienda requiere una cuenta geekz y validación en servidor.</p>
+</main>
+<script src="game.js?v=1.9"></script>
+</body></html>
