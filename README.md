@@ -1,4 +1,19 @@
-# KOZMIK RUN — v1.9.1 hallogeekz · pack gótico 32-bit
+# KOZMIK RUN — v1.9.2 hallogeekz · pack gótico 32-bit
+
+## v1.9.2 — el personaje se vuelve un cometa de su color
+- **adiós escoba:** al empezar la carrera hay un poof con los colores del disfraz (sin flash) y el personaje se convierte en un **cometa de su color**:
+  - **brujo:** cometa dorado (oro, amarillo cálido, toques naranja)
+  - **hombre lobo:** cometa plateado (plata, gris acero, blanco, chispas ámbar)
+  - **vampiro:** cometa carmesí (rojo profundo, escarlata, humo rojo-negro, toques dorados)
+  - mismo dibujo 64-bit que el cometa morado (cabeza de plasma, cola multitono con chispas, lóbulos que orbitan, remolinos y destellos), pero un poco más chico (×0,78) y menos intenso, así el morado sigue sintiéndose como mejora. los 3 solo cambian de color.
+  - **se distingue de obstáculos (aura roja) y kozmits (aura azul):** núcleo blanco-caliente marcado y cola con dos estrías claras que se abren hacia atrás; los lóbulos de afuera llevan el acento (naranja / ámbar / dorado).
+  - el hitbox no cambia (40×36 px).
+- **a los 50 ✦** cualquier cometa **florece en el cometa morado** (mismas reglas: invencible, rompe obstáculos, imán, 9 s): el cometa de color crece y se apaga mientras el morado se enciende (~0,55 s), con un anillo de su color. al terminar, el morado se desvanece (~0,5 s) y vuelve el cometa de color. la cola es continua (no se corta en el cambio).
+- se quitó todo lo de la escoba: sprite, código, la silueta tenue dentro del cometa y `assets/broom_32bit.png` (ya no se usa ni se publica). la historia muestra un cometa en css en vez de la escoba.
+- **textos nuevos:**
+  - historia: «un hechizo travieso lo convierte en un cometa… ¡y sale volando!» y «con 50 su cometa arde en morado.»
+  - menú: «elige tu disfraz y conviértete en un cometa. junta kozmits ✦ y aguanta en la oscuridad todo lo que puedas.» (y en el panel del juego: «… junta kozmits ✦ y cadenas enteras, esquiva lo que venga… y aguanta en la oscuridad todo lo que puedas.»)
+- se mantiene: música con tempo por acto, cadenas, derrota forzada en la oscuridad, todo lo de móvil, idle de los personajes en el menú, BETA ∞, `kozmicRun`.
 
 ## v1.9.1 — vuelven los personajes originales, escoba sola, historia, oscuridad final, más monedas, móvil
 - **vuelven los 3 personajes originales** (pack gótico 32-bit, de perfil): brujo (sombrero estrellado, báculo con cristal morado y grimorio), hombre lobo (piel de lobo gris con ojo naranja, capa roja rasgada, garras) y vampiro (capucha negra con cruz dorada, joya roja, alas de murciélago, jabot blanco).

@@ -1,6 +1,8 @@
-/* KOZMIK RUN v1.9.1 beta — geekz · temporada hallogeekz · pack gótico 32-bit
+/* KOZMIK RUN v1.9.2 beta — geekz · temporada hallogeekz · pack gótico 32-bit
    Canvas 900×500. Mecánica original intacta: mantener = subir, soltar = bajar,
    práctica 7 s ilimitada, 3 carreras reales por día, kozmits ✦, localStorage.
+   v1.9.2: el personaje se vuelve un COMETA de su color (brujo dorado · hombre lobo plateado · vampiro carmesí), núcleo
+           blanco-caliente y cola con estrías; a los 50 ✦ florece en el cometa morado y al terminar vuelve a su color. sin escoba.
    v1.9.1: vuelven los 3 personajes originales (perfil 32-bit) con idle snes por partes; en carrera el personaje se vuelve
            la escoba (sin jinete, dije y estela del disfraz); historia de apertura; sin textos explicativos ni flashes;
            «oscuridad total» a los 156 s (túnel que se cierra → siempre se pierde); ≈+45 % monedas en cadenas; adaptación móvil.
@@ -80,10 +82,9 @@ SKINS.forEach(([k])=>{load('skin_'+k,'assets/skin_'+k+'.png');STICKER.add('skin_
 /* v1.9.1: vuelven los 3 personajes ORIGINALES (pack gótico 32-bit, de perfil). hoja idle de 8 cuadros pixel art
    construida desde esos mismos sprites (4 de respiración + los mismos 4 con parpadeo), animación por partes a pasos
    de 1 px: respiración, párpado, cola, capa/punta del sombrero, cristal del báculo, alas, pelaje. sin sesgo.
-   + escoba voladora pixel-art 32-bit (4 cuadros de paja que flamea, PNG a 2×) */
+   v1.9.2: en carrera el personaje es un cometa de su color (ver COMET_SKIN) — sin escoba. */
 const FRONT_FRAMES=8,FRONT_SC=2;
 SKINS.forEach(([k])=>load('idle_'+k,'assets/idle_'+k+'.png'));
-load('broom32','assets/broom_32bit.png');
 const DEFAULT_SKIN='brujo';
 if(!SKINS.some(([k])=>k===data.skin)){data.skin=DEFAULT_SKIN;save()}
 function skinTrail(){const s=SKINS.find(([k])=>k===data.skin);return s?s[2]:SKINS[0][2]}
@@ -656,7 +657,7 @@ function panel(title,msg,practiceText,realText,hint){
 function hide(){$('#overlay').classList.add('hidden')}
 function setHeld(v){
   if(v&&state!=='playing')v=false;
-  if(v&&!held){Sound.boost();boostT=0;animKick(-7);if(state==='playing'&&comet<=0)broomPuff()} // anticipación + v1.9: soplo de polvo mágico de la paja
+  if(v&&!held){Sound.boost();boostT=0;animKick(-7);if(state==='playing'&&comet<=0)cometPuff()} // anticipación + v1.9.2: chispas del cometa
   if(!v&&held)animKick(3)
   held=v;Sound.jet(v);$('#boost').classList.toggle('pressed',v);
 }
@@ -672,7 +673,7 @@ function prepareRun(kind){
   obs=[];sparkles=[];particles=[];texts=[];held=false;shake=0;flash=0;
   player={x:180,y:250,vy:0,rot:0};
   seed=runSeed=TESTCFG.seed!=null?(TESTCFG.seed>>>0):freshSeed();
-  rigPop=RIG_POP;broomPoof(true); // v1.9.1: el personaje se transforma POR COMPLETO en la escoba (poof local, sin flash)
+  rigPop=RIG_POP;cometPoof(true); // v1.9.2: el personaje se transforma en su cometa de color (poof local, sin flash)
   last=performance.now();
   $('#timer').textContent='';$('#distance').textContent='0 m';
   $('#distanceLabel').textContent=kind==='practice'?'práctica':'distancia';
@@ -854,7 +855,7 @@ function hit(o){const[ox,oy,ow,oh]=o.kind==='wall'?[o.x,o.y,o.w,o.h]:hitBox(o),p
 let chainSeq=0;
 /* v1.9.1: velocidad en UNA función (update, forecast y warp de pruebas). en oscuridad el tope sigue subiendo
    (680 → 780 px/s en ~60 s) y a los FINAL_AT s llega la «oscuridad total»: un túnel de muros que se cierra
-   hasta que ya no cabe la escoba → toda carrera termina ahí (sin cometa, sin gatos). */
+   hasta que ya no cabe el cometa → toda carrera termina ahí (sin cometa, sin gatos). */
 const VOID_AT=90,FINAL_AT=VOID_AT+66,WALL_W=34; // VOID_AT = ACT_DUR*3 (ACT_DUR se declara más abajo)
 function speedAt(rt,w,vm){if(vm){const vt=rt-VOID_AT;return Math.min(680+Math.min(100,vt*1.65),490+vt*5.2+w*.009)}return Math.min(500,230+w*.017+rt*.95)}
 function finalGap(ft){return Math.max(0,212-17.5*ft)} // alto del hueco del túnel (el hitbox mide 36) → imposible a los ~10 s
@@ -1039,10 +1040,10 @@ function enterVoid(){
   maybeAnnounceAct();
 }
 /* v1.9.1: «oscuridad total» — fase final sin explicación: túnel de muros de obsidiana que converge y serpentea;
-   el hueco se cierra hasta quedar más chico que la escoba. sin cometa (si estaba activo se apaga), sin gatos/invencible. */
+   el hueco se cierra hasta quedar más chico que el cometa. sin cometa (si estaba activo se apaga), sin gatos/invencible. */
 function enterFinal(){
   if(finalMode)return;finalMode=true;finalT=0;wallNextX=W+30;wallN=0;finalPh=((runSeed>>>3)%628)/100; // el túnel serpentea distinto en cada carrera
-  if(comet>0){comet=0;cometTrail=[];Sound.cometOff();Sound.setComet(false);cometBurst(player.x,player.y-4,false);rigPop=RIG_POP*.7}
+  if(comet>0){comet=0;Sound.cometOff();Sound.setComet(false);cometBurst(player.x,player.y-4,false)}
   cometGrace=0;invulnT=0;shake=Math.max(shake,6);
   texts.push({x:W/2,y:H/2-60,text:'oscuridad total',color:'#ff8aa8',life:1.6,max:1.6,size:34,vy:-28});
 }
@@ -1462,83 +1463,38 @@ function drawKozmit(c){
 const PLAYER_H=80;        // alto del sprite del jugador en carrera
 const PLAYER_DY=-12;      // centro del sprite respecto a player.y (pies ≈ player.y+28)
 function playerTilt(){return state==='crashing'?player.rot:Math.max(-.22,Math.min(.28,player.vy/900))}
-// punto de emisión de la estela (detrás del personaje, a la altura de la cola) en coords mundo
-function broomTip(){
-  const rot=playerTilt();
-  const lx=(BROOM.ox+3)*BROOM.SC,ly=(BROOM.oy+BROOM.hy)*BROOM.SC; // v1.9.1: punta de la paja (la escoba ES el jugador)
-  const c=Math.cos(rot),s=Math.sin(rot);
-  return{x:player.x+lx*c-ly*s,y:player.y+lx*s+ly*c,rot};
-}
-/* v1.9: ESCOBA VOLADORA pixel-art. el aparejo (escoba + personaje de perfil) rota entero con la velocidad vertical
-   (rotación, no sesgo). la escoba es solo dibujo: el hitbox del jugador NO cambia (PL_HX/PL_HY). la parte del mango
-   que cruza el cuerpo se dibuja encima → se lee como montado. */
-const BROOM={fw:128,fh:40,S:2,hy:19,ox:-50,oy:-19,SC:1.3}; // v1.9.1: escoba SOLA (≈166×52 px); el hitbox NO cambia (PL_HX/PL_HY)
+/* v1.9.2: COMETA DEL PERSONAJE — mismo dibujo 64-bit que el cometa morado (cabeza de plasma, cola multitono con chispas,
+   lóbulos que orbitan) pero en el color del disfraz, un poco más chico y menos intenso (el morado sigue siendo la mejora).
+   núcleo blanco-caliente y cola con estrías claras → no se confunde con las auras rojas de obstáculos ni las azules de monedas.
+   el hitbox NO cambia (PL_HX/PL_HY). */
 const RIG_POP=.42;let rigPop=0,cometIgnA=1;
-const COMET_IGN=.55; // s: la estela de la escoba se enciende y se vuelve cometa
-/* v1.9.1: detalle por personaje en la escoba: la atadura toma el color del disfraz y cuelga un dije pixel art
-   (brujo: cristal morado con casquete dorado · hombre lobo: ojo ámbar en mechón gris · vampiro: joya roja con cruz dorada).
-   el dije se mece 1 px por cuadro (a pasos). todo con composición de canvas (sin leer píxeles → sirve en file://). */
-const BROOM_ACC={
-  brujo:{tie:null,pal:{g:'#a8802e',G:'#f6de8c',p:'#5a2a9a',P:'#9a5cff',W:'#ffffff',k:'#1a0c24'},
-    px:['..k..','.kgk.','kgGgk','kpPpk','pPWPp','pPPPp','kpPpk','.kpk.','..k..']},
-  'hombre-lobo':{tie:'#8a8478',pal:{f:'#6a5f52',F:'#c8c0b0',a:'#c86a10',A:'#ffb347',Y:'#fff4d8',w:'#f4ecd8',k:'#1a120c'},
-    px:['.k.k.','kfkfk','fFfFf','FaAaF','faYaf','kFfFk','.kwk.','..w..']},
-  vampiro:{tie:'#c81e32',pal:{g:'#a8802e',G:'#f6de8c',r:'#7a0a18',R:'#e8283c',W:'#ffd0d4',k:'#14040a'},
-    px:['..g..','.gGg.','..g..','.krk.','krRrk','rRWRr','rRRRr','krRrk','.krk.','..k..']}
+const COMET_IGN=.55,OWN_SC=.78,OWN_A=.86; // s del florecer al morado · escala/intensidad del cometa propio
+const COMET_PURPLE={name:'morado',hb:()=>282+Math.sin(t*1.15)*18,sp:1,sk:1,lb:0,own:false};
+const COMET_SKIN={
+  brujo:{name:'dorado',hb:()=>42+Math.sin(t*1.3)*5,sp:.2,sk:1,lb:4,own:true,acc:[[22,100,58],[54,100,74]],spark:['#ff8a2a','#ffe58a'],
+    cols:['#ffd46a','#ffb32e','#ff8a2a','#fff0b8','#ffe58a','#ffffff']},
+  'hombre-lobo':{name:'plateado',hb:()=>214,sp:.1,sk:.16,lb:-4,own:true,acc:[[32,100,54],[40,100,62]],spark:['#ffb347','#ffd08a'],
+    cols:['#e8ecf2','#b8c0cc','#8a94a2','#ffffff','#ffb347','#ffd08a']},
+  vampiro:{name:'carmesí',hb:()=>354+Math.sin(t*1.2)*4,sp:.14,sk:1,lb:-6,own:true,smoke:'38,2,10',acc:[[44,95,58],[8,100,55]],spark:['#ffd06a','#ff4a5a'],
+    cols:['#ff2a3a','#c80f24','#ff6070','#4a0610','#ffd06a','#ffffff']}
 };
-const broomCache={};
-function broomSheet(k){
-  if(broomCache[k])return broomCache[k];if(!ok('broom32'))return null;
-  const im=IMG.broom32,S=BROOM.S,fw=BROOM.fw,fh=BROOM.fh,c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;
-  const g=c.getContext('2d');g.imageSmoothingEnabled=false;g.drawImage(im,0,0);
-  const acc=BROOM_ACC[k]||BROOM_ACC.brujo;
-  for(let fr=0;fr<4;fr++){
-    if(acc.tie){ // atadura (x lógico 33..42) teñida con el color del disfraz, conservando la luz del pixel art
-      const bx=(fr*fw+32)*S,bw=11*S,tc=document.createElement('canvas');tc.width=bw;tc.height=fh*S;const tg=tc.getContext('2d');
-      tg.drawImage(im,bx,0,bw,fh*S,0,0,bw,fh*S);tg.globalCompositeOperation='color';tg.fillStyle=acc.tie;tg.fillRect(0,0,bw,fh*S);
-      tg.globalCompositeOperation='destination-in';tg.drawImage(im,bx,0,bw,fh*S,0,0,bw,fh*S);
-      g.clearRect(bx,0,bw,fh*S);g.drawImage(tc,bx,0);
-    }
-    // cordel + dije colgando bajo el mango (x lógico ≈ 58), se mece 1 px a pasos
-    const sw=[0,1,0,-1][fr],cx=fr*fw+58,top=22;
-    g.fillStyle='#2a1a10';for(let j=0;j<3;j++)g.fillRect((cx+(j===2?sw:0))*S,(top+j)*S,S,S);
-    const rows=acc.px,w0=rows[0].length;
-    for(let r=0;r<rows.length;r++)for(let q=0;q<w0;q++){const ch=rows[r][q];if(ch==='.')continue;
-      g.fillStyle=acc.pal[ch]||'#000';g.fillRect((cx+sw-(w0>>1)+q)*S,(top+3+r)*S,S,S)}
-  }
-  return broomCache[k]=c;
-}
-function drawBroom(x,y,rot,alpha=1,sc=1){
-  const im=broomSheet(data.skin);if(!im)return false;
-  const {fw,fh,S,ox,oy,SC}=BROOM,fr=Math.floor(t*(held?15:9))%4;
-  ctx.save();ctx.globalAlpha*=alpha;ctx.translate(x,y);if(rot)ctx.rotate(rot);ctx.scale(SC*sc,SC*sc);
-  ctx.imageSmoothingEnabled=true;if('imageSmoothingQuality' in ctx)ctx.imageSmoothingQuality='high';
-  ctx.drawImage(im,fr*fw*S,0,fw*S,fh*S,ox,oy,fw,fh);
-  ctx.restore();return true;
-}
-let broomSilC=null;
-function broomSilhouette(){ // silueta tenue de la escoba (adentro del cometa)
-  if(broomSilC)return broomSilC;const im=broomSheet(data.skin);if(!im)return null;
-  const {fw,fh,S}=BROOM,mk=()=>{const c=document.createElement('canvas');c.width=fw*S;c.height=fh*S;return c};
-  const dark=mk(),dg=dark.getContext('2d');dg.drawImage(im,0,0,fw*S,fh*S,0,0,fw*S,fh*S);dg.globalCompositeOperation='source-in';dg.fillStyle='#3a1670';dg.fillRect(0,0,fw*S,fh*S);
-  const lite=mk(),lg=lite.getContext('2d');lg.drawImage(im,0,0,fw*S,fh*S,0,0,fw*S,fh*S);lg.globalCompositeOperation='source-in';lg.fillStyle='#f0d8ff';lg.fillRect(0,0,fw*S,fh*S);
-  return broomSilC={dark,lite};
-}
-function charPoof(){ // v1.9.1: la escoba se deshace y vuelve el personaje (nube local con colores del disfraz)
+function ownComet(){return COMET_SKIN[data.skin]||COMET_SKIN.brujo}
+function cometHead(){return{x:player.x+6,y:player.y-4}}
+function charPoof(){ // v1.9.1: el cometa se deshace y vuelve el personaje (nube local con colores del disfraz)
   const cols=[...skinTrail().trail,'#ffffff'];
   for(let i=0;i<30;i++){const a=i/30*Math.PI*2+Math.random()*.4,sp=50+Math.random()*150;
     particles.push({x:IDLE_X+(Math.random()-.5)*40,y:IDLE_FEET-110+(Math.random()-.5)*60,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-20,life:.45+Math.random()*.4,max:.85,size:4+Math.random()*6,color:cols[i%cols.length],g:-30,kind:i%3?'soft':'glint',drag:3.2})}
 }
-function broomPoof(start){ // nube de partículas al transformarse (local, nunca flash de pantalla)
-  const pal=skinTrail(),cols=[...pal.trail,'#ffffff'];
+function cometPoof(start){ // nube de partículas al transformarse en cometa (local, nunca flash de pantalla)
+  const cols=[...ownComet().cols,...skinTrail().trail];
   const spots=start?[[IDLE_X,IDLE_FEET-110,34],[player.x,player.y,26]]:[[player.x,player.y,22]];
   for(const[x0,y0,n]of spots)for(let i=0;i<n;i++){const a=i/n*Math.PI*2+Math.random()*.4,sp=60+Math.random()*170;
     particles.push({x:x0+(Math.random()-.5)*20,y:y0+(Math.random()-.5)*24,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-30,life:.45+Math.random()*.4,max:.85,size:4+Math.random()*7,color:cols[i%cols.length],g:-40,kind:i%3?'soft':'glint',drag:3.2})}
 }
-function broomPuff(){ // soplo extra de polvo mágico desde la paja al apretar «vuela»
-  const tip=broomTip(),cols=skinTrail().trail;
-  for(let i=0;i<8;i++){const life=.35+Math.random()*.35;
-    particles.push({x:tip.x+(Math.random()-.5)*8,y:tip.y+(Math.random()-.5)*12,vx:-60-Math.random()*120-speed*.25,vy:(Math.random()-.5)*90+30,life,max:life,size:3+Math.random()*5,color:cols[i%cols.length],g:0,kind:i%2?'soft':'dot',drag:2.4})}
+function cometPuff(){ // chispas extra del color del cometa al apretar «vuela»
+  const h=cometHead(),cols=ownComet().cols;
+  for(let i=0;i<7;i++){const life=.3+Math.random()*.3;
+    particles.push({x:h.x-10+(Math.random()-.5)*10,y:h.y+(Math.random()-.5)*16,vx:-90-Math.random()*120-speed*.3,vy:(Math.random()-.5)*90+20,life,max:life,size:2+Math.random()*4,color:cols[i%cols.length],g:0,kind:i%2?'soft':'glint',drag:2.4})}
 }
 /* v1.9: IDLE DE FRENTE (menú): hoja real por personaje, cuadros pixel art a escala entera, sin suavizado.
    respiración en 4 cuadros (reposo · inhala · reposo · exhala, con capa/orejas que se mecen), parpadeo cada ~3 s
@@ -1625,31 +1581,31 @@ function drawWarped(k,x,y,h,rot,sx,sy){
 }
 /* v1.8.4: COMETA MORADO — dibujo procedural "64-bit": capas de gradientes radiales en mezcla aditiva,
    lóbulos de plasma que orbitan con tonos distintos (violeta, magenta, índigo, lila, toques cian/rosa),
-   núcleo blanco-lila, cola-cinta que sigue la historia de la cabeza, remolinos y destellos; silueta del
-   escoba tenue adentro (v1.9.1, sin jinete). nada de flashes de pantalla: en el aviso final solo el cometa titila suave. */
+   núcleo blanco-lila, cola-cinta que sigue la historia de la cabeza, remolinos y destellos (v1.9.2: sin
+   silueta adentro; parametrizado por paleta → también dibuja el cometa de color del personaje). nada de flashes de pantalla: en el aviso final solo el cometa titila suave. */
 function cRad(x,y,r,stops,sx=1,sy=1){ctx.save();ctx.translate(x,y);ctx.scale(sx,sy);const g=ctx.createRadialGradient(0,0,0,0,0,r);for(const[o,c]of stops)g.addColorStop(o,c);ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.fill();ctx.restore()}
-const silCache={};
-function skinSilhouette(k){
-  if(silCache[k])return silCache[k];if(!ok(k))return null;
-  const im=IMG[k],w=im.naturalWidth,h=im.naturalHeight,pad=Math.ceil(h*.06),mk=()=>{const c=document.createElement('canvas');c.width=w+pad*2;c.height=h+pad*2;return c};
-  const dark=mk(),dg=dark.getContext('2d');dg.drawImage(im,pad,pad);dg.globalCompositeOperation='source-in';
-  const gr=dg.createLinearGradient(0,0,0,dark.height);gr.addColorStop(0,'#5a2a9a');gr.addColorStop(1,'#2a0f5c');dg.fillStyle=gr;dg.fillRect(0,0,dark.width,dark.height);
-  const lite=mk(),lg=lite.getContext('2d');lg.drawImage(im,pad,pad);lg.globalCompositeOperation='source-in';lg.fillStyle='#f0d8ff';lg.fillRect(0,0,lite.width,lite.height);
-  return silCache[k]={dark,lite,pad,h};
-}
 function cometAlpha(){return cometIgnA*(comet<COMET_WARN?.55+.45*(.5+.5*Math.cos(t*Math.PI*2*(comet<.8?4:2.4))):1)}
-function drawComet(){
-  const x=player.x+6,y=player.y-4,A=cometAlpha(),hb=282+Math.sin(t*1.15)*18; // tono base: violeta ↔ púrpura-magenta
-  const hs=(o,s,l,a)=>`hsla(${((hb+o)%360+360)%360},${s}%,${l}%,${a})`;
+/* drawComet(P,A,sc): P = paleta (COMET_PURPLE o COMET_SKIN[k]); A = opacidad; sc = escala alrededor de la cabeza.
+   el tono sale de hb + desplazamiento·sp (sp<1 → paleta cerrada: dorado/plateado/carmesí); sk escala la saturación. */
+function drawComet(P=COMET_PURPLE,A=cometAlpha(),sc=1){
+  if(A<=.01)return;
+  const x=player.x+6,y=player.y-4,hb=P.hb(),sp=P.sp,sk=P.sk,lb=P.lb,own=P.own,cols=P.cols||COMET_COLS;
+  const hs=(o,s,l,a)=>`hsla(${((hb+o*sp)%360+360)%360},${Math.min(100,s*sk)}%,${Math.max(0,Math.min(100,l+lb))}%,${a})`;
+  const ac=(i,l,a)=>{const q=P.acc[i%P.acc.length];return`hsla(${q[0]},${q[1]}%,${Math.max(0,Math.min(100,l??q[2]))}%,${a})`};
   const tr=cometTrail,N=tr.length;
-  // 0) base en mezcla normal: cinta afilada + orbe violeta profundo → morado saturado sobre cualquier fondo
-  ctx.save();ctx.globalAlpha=A*.62;
+  ctx.save();ctx.translate(x,y);ctx.scale(sc,sc);ctx.translate(-x,-y);
+  // 0) base en mezcla normal: cinta afilada + orbe del color → saturado sobre cualquier fondo
+  ctx.save();
+  if(P.smoke&&N>3){ // humo rojo-negro detrás de la cola (vampiro)
+    for(let i=0;i<N;i+=2){const p=tr[i],f=(i+1)/N,r=8+20*f,wob=Math.sin(t*4+i*.9)*5*(1-f);
+      ctx.globalAlpha=A*(.28*(1-f)+.12);ctx.fillStyle=`rgba(${P.smoke},.9)`;ctx.beginPath();ctx.arc(p.x+6-8*(1-f),p.y+wob+6*(1-f),r,0,7);ctx.fill()}}
+  ctx.globalAlpha=A*.62;
   if(N>3){
     const up=[],dn=[];
-    for(let i=0;i<N;i++){const p=tr[i],f=(i+1)/N,w=3+30*Math.pow(f,1.25)+Math.sin(t*7+i*.6)*1.5*(1-f);up.push([p.x+6,p.y-w]);dn.push([p.x+6,p.y+w])}
-    up.push([x+4,y-34]);dn.push([x+4,y+34]);
+    for(let i=0;i<N;i++){const p=tr[i],f=(i+1)/N,w=(own?2:3)+(own?22:30)*Math.pow(f,own?1.6:1.25)+Math.sin(t*7+i*.6)*1.5*(1-f);up.push([p.x+6,p.y-w]);dn.push([p.x+6,p.y+w])}
+    up.push([x+4,y-(own?28:34)]);dn.push([x+4,y+(own?28:34)]);
     const g=ctx.createLinearGradient(tr[0].x,0,x,0);
-    g.addColorStop(0,'rgba(60,200,255,0)');g.addColorStop(.25,hs(-80,95,52,.35));g.addColorStop(.55,hs(-35,95,45,.6));g.addColorStop(.8,hs(30,100,50,.75));g.addColorStop(1,hs(0,100,55,.9));
+    g.addColorStop(0,hs(-80,95,52,0));g.addColorStop(.25,hs(-80,95,own?40:52,.35));g.addColorStop(.55,hs(-35,95,own?38:45,.6));g.addColorStop(.8,hs(30,100,50,.75));g.addColorStop(1,hs(0,100,55,.9));
     ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(up[0][0],up[0][1]);
     for(let i=1;i<up.length;i++)ctx.lineTo(up[i][0],up[i][1]);
     for(let i=dn.length-1;i>=0;i--)ctx.lineTo(dn[i][0],dn[i][1]);
@@ -1658,75 +1614,67 @@ function drawComet(){
   ctx.globalAlpha=A*.9;
   cRad(x-8,y,62,[[0,hs(0,100,58,.95)],[.45,hs(-14,95,42,.8)],[.8,hs(-30,90,28,.35)],[1,hs(-30,90,20,0)]],1.25,1);
   ctx.restore();
-  // 1) silueta del personaje dentro del orbe (debajo del plasma aditivo → se ve "adentro" del cometa)
-  const sil=broomSilhouette(),silRot=Math.max(-.2,Math.min(.25,player.vy/1000)),silY=y-1+Math.sin(t*5)*1.2; // v1.9.1: escoba tenue (sin jinete)
   ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=A;
-  // 2) cola: discos suaves sobre la historia de la cabeza (violeta → magenta → índigo → cian en la punta),
-  //    con un leve corrimiento de tono por disco para que la cola "tornasole"
+  // 2) cola: discos suaves sobre la historia de la cabeza, con corrimiento de tono por disco (tornasol)
   for(let i=0;i<N;i++){const p=tr[i],f=(i+1)/N,r=6+26*Math.pow(f,1.3),o=(f>.7?0:f>.48?48:f>.26?-42:-108)+28*Math.sin(i*.75-t*5),wob=Math.sin(t*9+i*.7)*2*(1-f);
-    cRad(p.x+6,p.y+wob,r,[[0,hs(o,100,66,.2*f+.05)],[.5,hs(o,100,55,.12*f+.03)],[1,hs(o,100,45,0)]],1.3,1)}
+    cRad(p.x+6,p.y+wob,r*(own?.82:1),[[0,hs(o,100,66,.2*f+.05)],[.5,hs(o,100,55,.12*f+.03)],[1,hs(o,100,45,0)]],1.3,1)}
   // 2b) hebra brillante en el centro de la cola (define la forma)
   if(N>3){const i0=Math.floor(N*.35);ctx.globalAlpha=A*.55;ctx.lineCap='round';ctx.lineJoin='round';
-    for(const[lw,c]of[[7,hs(10,100,75,.3)],[2,'rgba(255,240,255,.55)']]){ctx.lineWidth=lw;ctx.strokeStyle=c;ctx.beginPath();ctx.moveTo(tr[i0].x+6,tr[i0].y);
+    for(const[lw,c]of[[7,hs(10,100,75,.3)],[2,'rgba(255,248,240,.6)']]){ctx.lineWidth=lw;ctx.strokeStyle=c;ctx.beginPath();ctx.moveTo(tr[i0].x+6,tr[i0].y);
       for(let i=i0+1;i<N;i++)ctx.lineTo(tr[i].x+6,tr[i].y);ctx.lineTo(x,y);ctx.stroke()}
+    // v1.9.2: cometa propio = cola con 2 estrías claras que se abren hacia atrás (forma distinta a cualquier aura)
+    if(own){ctx.lineWidth=1.6;for(const sgn of[-1,1]){ctx.strokeStyle='rgba(255,252,240,.5)';ctx.beginPath();const j0=Math.floor(N*.25);
+      for(let i=j0;i<N;i++){const f=(i+1)/N,off=sgn*(4+14*(1-f))*(.85+.15*Math.sin(t*6+i*.5));if(i===j0)ctx.moveTo(tr[i].x+6,tr[i].y+off);else ctx.lineTo(tr[i].x+6,tr[i].y+off)}
+      ctx.lineTo(x-6,y+sgn*4);ctx.stroke()}}
     ctx.globalAlpha=A}
   // 3) halo exterior alargado hacia atrás (forma de lágrima)
-  cRad(x-18,y,112,[[0,hs(0,100,62,.42)],[.32,hs(38,100,55,.2)],[.65,hs(-48,95,48,.1)],[1,hs(-48,95,40,0)]],1.4,1);
-  // 4) lóbulos de plasma que orbitan, cada uno con su tono (violeta, magenta, índigo, lila, cian, rosa)
-  //    (cian y rosa orbitan más afuera → asoman por el borde del orbe)
+  cRad(x-18,y,own?92:112,[[0,hs(0,100,62,own?.34:.42)],[.32,hs(38,100,55,.18)],[.65,hs(-48,95,48,.08)],[1,hs(-48,95,40,0)]],1.4,1);
+  // 4) lóbulos de plasma que orbitan (los 2 de afuera llevan el acento del color: naranja/ámbar/dorado)
   const LOB=[[0,100,60,12],[48,100,58,14],[-42,100,56,15],[16,90,74,10],[-100,100,62,26],[72,100,70,24]];
   for(let i=0;i<LOB.length;i++){const[o,sa,l,R]=LOB[i],a=t*(1.7+i*.21)*(i%2?-1:1)+i*1.047,r=R+7*Math.sin(t*2.4+i*1.7);
-    cRad(x-4+Math.cos(a)*r*1.3,y+Math.sin(a)*r,(R>20?18:25)+5*Math.sin(t*3.1+i),[[0,hs(o,sa,l,R>20?.6:.42)],[.55,hs(o,sa,l-10,.18)],[1,hs(o,sa,l-20,0)]])}
+    const rad=(R>20?18:25)+5*Math.sin(t*3.1+i),al=R>20?.6:.42;
+    const stops=own&&R>20?[[0,ac(i,null,al*.9)],[.55,ac(i,null,.16)],[1,ac(i,null,0)]]:[[0,hs(o,sa,l,al)],[.55,hs(o,sa,l-10,.18)],[1,hs(o,sa,l-20,0)]];
+    cRad(x-4+Math.cos(a)*r*1.3,y+Math.sin(a)*r,rad,stops)}
   ctx.restore();
-  // silueta del personaje adentro del orbe (sombra violeta translúcida entre el plasma y el brillo del núcleo)
-  if(sil){const dw=92,dh=dw*sil.dark.height/sil.dark.width;
-    ctx.save();ctx.translate(x+3,silY);ctx.rotate(silRot);ctx.imageSmoothingEnabled=true;
-    ctx.globalAlpha=A*.38;ctx.drawImage(sil.dark,-dw*.45,-dh/2,dw,dh);ctx.restore()}
   ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=A;
-  // 5) núcleo lila-blanco + borde de luz del orbe
-  cRad(x+4,y-3,30,[[0,'rgba(255,248,255,.34)'],[.4,hs(14,100,80,.22)],[1,hs(14,100,70,0)]]);
+  // 5) núcleo + borde de luz del orbe (cometa propio: núcleo blanco-caliente más fuerte)
+  if(own){cRad(x+4,y-2,24,[[0,'rgba(255,255,252,.95)'],[.35,'rgba(255,250,236,.7)'],[.7,hs(10,100,80,.3)],[1,hs(10,100,70,0)]]);
+    cRad(x+6,y-3,10,[[0,'rgba(255,255,255,1)'],[1,'rgba(255,255,255,0)']])}
+  else cRad(x+4,y-3,30,[[0,'rgba(255,248,255,.34)'],[.4,hs(14,100,80,.22)],[1,hs(14,100,70,0)]]);
   cRad(x+12,y-11,12,[[0,'rgba(255,255,255,.7)'],[1,'rgba(255,235,255,0)']]);
-  ctx.globalAlpha=A*.5;ctx.strokeStyle=hs(20,100,80,1);ctx.lineWidth=1.6;ctx.beginPath();ctx.ellipse(x-2,y,36,32,0,0,7);ctx.stroke();
-  // contorno lila tenue de la silueta
-  if(sil){const dw=90,dh=dw*sil.lite.height/sil.lite.width;
-    ctx.save();ctx.translate(x+3,silY);ctx.rotate(silRot);ctx.imageSmoothingEnabled=true;ctx.globalAlpha=A*.16;ctx.drawImage(sil.lite,-dw*.45,-dh/2,dw,dh);ctx.restore()}
+  ctx.globalAlpha=A*.5;ctx.strokeStyle=hs(20,100,80,1);ctx.lineWidth=1.6;ctx.beginPath();ctx.ellipse(x-2,y,own?30:36,own?27:32,0,0,7);ctx.stroke();
   ctx.restore();
   ctx.save();ctx.globalCompositeOperation='lighter';
-  // 6) reflejo interior encima de la silueta (se siente "dentro" del plasma)
+  // 6) reflejo interior
   ctx.globalAlpha=A*.45;cRad(x+12,y-12,13,[[0,'rgba(255,255,255,.85)'],[1,'rgba(255,230,255,0)']]);
-  // 7) remolinos de energía (arcos parciales con brillo, distinto ritmo y tono)
-  const SW=[[30,0],[-60,1],[60,2],[-105,3]];
+  // 7) remolinos de energía (arcos parciales con brillo, distinto ritmo y tono) — el propio usa 3
+  const SW=own?[[30,0],[-60,1],[60,2]]:[[30,0],[-60,1],[60,2],[-105,3]];
   for(const[o,k]of SW){ctx.globalAlpha=A*(.55+.2*Math.sin(t*3+k));ctx.strokeStyle=hs(o,100,70,1);if(!LOWFX){ctx.shadowColor=hs(o,100,60,1);ctx.shadowBlur=8}ctx.lineWidth=2.8-k*.4;ctx.lineCap='round';
-    const st=t*(2.3+k*.6)*(k%2?-1:1)+k*1.6;ctx.beginPath();ctx.ellipse(x-4,y,42+k*7,31+k*5,0,st,st+1.3+k*.25);ctx.stroke()}
+    const st=t*(2.3+k*.6)*(k%2?-1:1)+k*1.6;ctx.beginPath();ctx.ellipse(x-4,y,(own?36:42)+k*7,(own?27:31)+k*5,0,st,st+1.3+k*.25);ctx.stroke()}
   ctx.shadowBlur=0;
   // 8) destellos alrededor
   for(let k=0;k<7;k++){const ph=t*1.9+k*.9,tw=Math.max(0,Math.sin(t*5.3+k*2.1));if(tw<.15)continue;
-    const r=40+12*Math.sin(ph*1.3);ctx.globalAlpha=A*tw;sparkle4(x-10+Math.cos(ph)*r*1.35,y+Math.sin(ph)*r,3+4.5*tw,k%3?'#ffffff':COMET_COLS[(k*3)%COMET_COLS.length])}
+    const r=40+12*Math.sin(ph*1.3);ctx.globalAlpha=A*tw;sparkle4(x-10+Math.cos(ph)*r*1.35,y+Math.sin(ph)*r,3+4.5*tw,k%3?'#ffffff':P.spark?P.spark[(k/3|0)%2]:cols[(k*3)%cols.length])}
+  ctx.restore();
   ctx.restore();
 }
-function drawRig(alpha=1){ // v1.9.1: SOLO la escoba — el personaje se transformó por completo (sin jinete)
-  const x=player.x,y=player.y,a=playerAnim();
-  const pk=rigPop>0?1-rigPop/RIG_POP:1,sc=pk<.25?.55:pk<.5?.82:pk<.75?1.1:1; // pop a pasos al transformarse
-  drawBroom(x,y+Math.round(a.bob*.6),a.lean,alpha,sc);
-}
 function drawMascot(){
-  if(comet>0&&state==='playing'){ // v1.9: la estela de la escoba se enciende y se convierte en el cometa
-    const ig=Math.max(0,Math.min(1,(COMET_DUR-comet)/COMET_IGN));
-    if(ig<1){
-      drawRig(1-ig);
-      const tip=broomTip();ctx.save();ctx.globalCompositeOperation='lighter';
-      for(let i=0;i<7;i++){const f=i/6,px=tip.x+(player.x-tip.x)*f*ig,py=tip.y+(player.y-4-tip.y)*f*ig,r=(10+26*ig)*(1-f*.5)*(.85+.15*Math.sin(t*20+i));
-        ctx.globalAlpha=.55*(1-f*.4)*Math.min(1,ig*3);ctx.drawImage(softDot(COMET_COLS[i%COMET_COLS.length]),px-r,py-r,r*2,r*2)}
-      ctx.restore();
-    }
-    if(ig>0){const tip=broomTip(),e=1-Math.pow(1-ig,3),sc=.28+.72*e;
-      ctx.save();ctx.translate(tip.x,tip.y);ctx.scale(sc,sc);ctx.translate(-tip.x,-tip.y);cometIgnA=Math.min(1,ig*1.6);drawComet();cometIgnA=1;ctx.restore()}
-    return;
+  if(state==='playing'||state==='crashing'){ // v1.9.2: el jugador ES un cometa (de su color; morado con el poder)
+    const own=ownComet();
+    if(state==='crashing'){drawComet(own,Math.max(0,crashT/.8)*OWN_A,OWN_SC*(1+(.8-crashT)*.35));return}
+    if(comet>0){ // florece: el cometa de color crece y se vuelve morado
+      const ig=Math.max(0,Math.min(1,(COMET_DUR-comet)/COMET_IGN)),e=1-Math.pow(1-ig,3);
+      if(ig<1)drawComet(own,OWN_A*(1-ig),OWN_SC+(1-OWN_SC)*e);
+      cometIgnA=Math.min(1,ig*1.4);drawComet(COMET_PURPLE,cometAlpha(),OWN_SC+(1-OWN_SC)*e);cometIgnA=1;
+      drawShield();return}
+    const out=cometGrace>COMET_GRACE-.5?(cometGrace-(COMET_GRACE-.5))/.5:0; // al terminar: el morado se apaga y vuelve el color
+    const pk=rigPop>0?1-rigPop/RIG_POP:1,pop=pk<.25?.55:pk<.5?.82:pk<.75?1.1:1; // pop a pasos al transformarse
+    if(out>0)drawComet(COMET_PURPLE,out*.9,OWN_SC+(1-OWN_SC)*out);
+    drawComet(own,OWN_A*(1-out*.7),OWN_SC*pop);
+    drawShield();return;
   }
   const x=player.x,y=player.y;
-  if(cometGrace>0&&state==='playing'){const g=cometGrace/COMET_GRACE;glow(x,y-6,72,'#b06cff',.4*g);glow(x,y-6,44,'#ff7ce0',.22*g)}
   const palG=skinTrail(),front=state!=='playing'&&state!=='crashing';
-  if(!front)glow(x-8,y,62,held?palG.trail[0]:palG.idle[0],held?.42:.28);
   const sk='skin_'+data.skin;
   if(front){ // v1.9.1: menú — personaje original de perfil con idle pixel art SNES (respira, parpadea, cola, capa…), en su lugar
     glow(IDLE_X,IDLE_FEET,60,palG.idle[0],.26);
@@ -1736,11 +1684,6 @@ function drawMascot(){
     if(!(drawWarped(sk,x,y-6+bob,86,0,1,1)||sprite('player',x,y-6+bob,80)||sprite('gz01',x,y-6+bob,74)))drawFallback(x,y+bob,0);
     return;
   }
-  // sombra mágica bajo la escoba — se encoge al subir
-  glow(x-14,y+26,40*(1-ANIM.sq*.15),held?palG.trail[1]||palG.trail[0]:palG.idle[1]||palG.idle[0],held?.3:.15);
-  if(cometGrace>COMET_GRACE-.5&&state==='playing'){const tip=broomTip(),g=(cometGrace-(COMET_GRACE-.5))/.5;glow(tip.x,tip.y,40,'#b06cff',.55*g);glow(tip.x,tip.y,22,'#ff7ce0',.4*g)} // la paja aún arde morada al volver
-  drawRig();
-  drawShield();
 }
 function drawFallback(x,y,rot){ // figura de respaldo de frente
   ctx.save();ctx.translate(x,y);ctx.rotate(rot);
@@ -1789,7 +1732,7 @@ function draw(){
   ctx.save();
   if(shake>0)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
   drawBg();
-  drawFinalDark(); // v1.9.1: la oscuridad tapa el fondo; escoba, muros y kozmits siguen legibles
+  drawFinalDark(); // v1.9.1: la oscuridad tapa el fondo; cometa, muros y kozmits siguen legibles
   for(const c of sparkles)drawKozmit(c);
   drawParticles();drawMascot();
   // primer plano delante del jugador (profundidad)
@@ -1851,29 +1794,6 @@ function drawFloorHud(){
   ctx.restore();
 }
 /* ---------- actualización ---------- */
-function emitTrail(dt){
-  boostT+=dt;
-  const tip=broomTip();
-  const pal=skinTrail();
-  const spdF=Math.max(0,Math.min(1,(speed-250)/(voidMode?450:250)));
-  const power=(held?1:.22)*(0.45+spdF*0.9+(held?Math.min(.35,boostT*.15):0));
-  const n=held?Math.floor(3+power*7+spdF*3):(Math.random()<.4?1:0); // v1.9: sin «vuela» la paja suelta un polvito mágico
-  const cols=held?pal.trail:pal.idle;
-  for(let i=0;i<n;i++){
-    const ox=(Math.random()-.5)*(10+power*14),oy=(Math.random()-.5)*(8+power*10);
-    const life=.3+power*.55+Math.random()*.35;
-    particles.push({
-      x:tip.x+ox,y:tip.y+oy,
-      vx:-speed*(.5+.25*power)-Math.random()*(90+power*120),
-      vy:(held?50+power*50:15)+(Math.random()-.4)*(70+power*60),
-      life,max:life+.05,
-      size:(held?2.2:1.2)+power*4.5+Math.random()*2.2,
-      color:cols[Math.floor(Math.random()*cols.length)],
-      g:0,kind:held&&(Math.random()<.25+power*.25)?'star':'dot',
-      bright:power
-    });
-  }
-}
 function burst(x,y,v){
   const g=masByN(v).glow;
   const cols=v>=6?[g,'#ffd46a','#ffffff',g]:v>=3?[g,'#d8b4ff','#ffffff']:v===2?['#b05cff','#d8b4ff','#ffffff']:['#ffd84a','#ffe9a0','#ffffff'];
@@ -1890,17 +1810,17 @@ function cometBurst(x,y,out){ // estallido local de transformación (sin flash d
   particles.push({x,y,vx:0,vy:0,life:.45,max:.45,kind:'ring',r0:10,r1:out?95:70,color:'#ff7ce0',size:2});
 }
 function startComet(){
-  comet=COMET_DUR;cometGrace=0;cometWarnAt=COMET_WARN;cometTrail=[];Sound.cometOn();Sound.setComet(true);shake=Math.max(shake,4);
-  cometBurst(player.x,player.y-4,true);
+  comet=COMET_DUR;cometGrace=0;cometWarnAt=COMET_WARN;Sound.cometOn();Sound.setComet(true);shake=Math.max(shake,4);
+  cometBurst(player.x,player.y-4,true);particles.push({x:player.x+6,y:player.y-4,vx:0,vy:0,life:.5,max:.5,kind:'ring',r0:12,r1:90,color:ownComet().cols[0],size:3}); // florece desde su color
   texts.push({x:W/2,y:H/2-50,text:'¡cometa morado!',color:'#e2b8ff',life:1.6,max:1.6,size:36,vy:-24});
 }
 function endComet(){
-  comet=0;cometGrace=COMET_GRACE;cometTrail=[];Sound.cometOff();Sound.setComet(false);cometBurst(player.x,player.y-4,false);rigPop=RIG_POP*.7; // v1.9: vuelve a la escoba
+  comet=0;cometGrace=COMET_GRACE;Sound.cometOff();Sound.setComet(false);cometBurst(player.x,player.y-4,false); // v1.9.2: vuelve a su cometa de color
 }
-function emitComet(dt){
-  const n=Math.random()<.5?4:3;
+function emitComet(dt,COLS=COMET_COLS,k=1){ // k<1: cometa propio (menos chispas)
+  const COMET_COLS=COLS,n=k<1?(Math.random()<k*(held?1.6:1)?2:Math.random()<.5?1:0):(Math.random()<.5?4:3);
   for(let i=0;i<n;i++){const life=.35+Math.random()*.45;particles.push({x:player.x-12+(Math.random()-.5)*14,y:player.y-4+(Math.random()-.5)*20,vx:-speed*(.55+Math.random()*.4)-40,vy:(Math.random()-.5)*70,life,max:life,size:3+Math.random()*6,color:COMET_COLS[Math.floor(Math.random()*COMET_COLS.length)],g:0,kind:'soft',drag:.6})}
-  if(Math.random()<.6){const life=.4+Math.random()*.5;particles.push({x:player.x-20+(Math.random()-.5)*30,y:player.y-4+(Math.random()-.5)*36,vx:-speed*(.45+Math.random()*.3),vy:(Math.random()-.5)*40,life,max:life,size:2+Math.random()*3,color:Math.random()<.5?'#ffffff':COMET_COLS[Math.floor(Math.random()*COMET_COLS.length)],g:0,kind:'glint'})}
+  if(Math.random()<.6*k){const life=.4+Math.random()*.5;particles.push({x:player.x-20+(Math.random()-.5)*30,y:player.y-4+(Math.random()-.5)*36,vx:-speed*(.45+Math.random()*.3),vy:(Math.random()-.5)*40,life,max:life,size:2+Math.random()*3,color:Math.random()<.5?'#ffffff':COMET_COLS[Math.floor(Math.random()*COMET_COLS.length)],g:0,kind:'glint'})}
 }
 function smashObstacle(o){ // el obstáculo estalla en trozos + chispas moradas, pequeño bonus
   const cx=o.x+o.w/2,cy=o.y+o.h/2,n=Math.min(42,16+Math.round((o.w+o.h)/8));
@@ -1933,14 +1853,15 @@ function update(dt,now){
     if(invulnT<=0){invulnT=0;Sound.powerEnd()}}
   player.vy+=(held?-980:720)*dt;player.vy=Math.max(-370,Math.min(430,player.vy));player.y+=player.vy*dt;
   // v1.8.4: cometa morado (cola con historia de la cabeza, chispas, aviso suave en los últimos 2 s)
+  // v1.9.2: la cola del cometa (historia de la cabeza) se lleva SIEMPRE: el jugador es un cometa
+  for(const p of cometTrail)p.x-=speed*dt*1.5;
+  cometTrail.push({x:player.x,y:player.y-4});
+  while(cometTrail.length>36||(cometTrail.length&&cometTrail[0].x<player.x-330))cometTrail.shift();
   if(comet>0){comet-=dt;
-    for(const p of cometTrail)p.x-=speed*dt*1.5;
-    cometTrail.push({x:player.x,y:player.y-4});
-    while(cometTrail.length>36||(cometTrail.length&&cometTrail[0].x<player.x-330))cometTrail.shift();
     emitComet(dt);
     if(comet<cometWarnAt&&cometWarnAt>.5){cometWarnAt-=1;Sound.cometWarn()}
     if(comet<=0)endComet();
-  }else{if(cometGrace>0)cometGrace=Math.max(0,cometGrace-dt);emitTrail(dt)}
+  }else{if(cometGrace>0)cometGrace=Math.max(0,cometGrace-dt);emitComet(dt,ownComet().cols,.45)}
   if(finalMode)updateFinal(dt);
   spawnIn-=dt;
   if(spawnIn<=0&&!finalMode&&runTime<FINAL_AT-1.2){
@@ -2031,7 +1952,7 @@ function update(dt,now){
   if(TESTCFG.god&&!finalMode){player.y=Math.max(14,Math.min(H-FLOOR_H-4,player.y))}
   if(mode==='practice'){
     if(player.y<30){player.y=30;player.vy=Math.abs(player.vy)*.45}
-    if(player.y>H-FLOOR_H-24){player.y=H-FLOOR_H-24;player.vy=-Math.abs(player.vy)*.45} // escoba apoyada sobre el suelo
+    if(player.y>H-FLOOR_H-24){player.y=H-FLOOR_H-24;player.vy=-Math.abs(player.vy)*.45} // rebota sobre el suelo
     if(practiceLeft<=0){finishPractice();return}
   }
 }
@@ -2074,7 +1995,7 @@ function paintSkins(){
   const lbl=SKINS.find(([k])=>k===data.skin);$('#skinName').textContent=lbl?lbl[1]:'';
 }
 function setSkin(k,fx=true){
-  if(k===data.skin||!SKINS.some(([s])=>s===k))return;data.skin=k;save();paintSkins();broomSilC=null;
+  if(k===data.skin||!SKINS.some(([s])=>s===k))return;data.skin=k;save();paintSkins();
   if(fx){Sound.init();Sound.ui();burst(IDLE_X,IDLE_FEET-110,3)}
 }
 SKINS.forEach(([k,label])=>{const b=document.createElement('button');b.type='button';b.className='skin';b.dataset.skin=k;b.title=label;b.setAttribute('aria-label','skin '+label);
@@ -2103,7 +2024,7 @@ $('#practice').addEventListener('click',()=>{goFullscreen();prepareRun('practice
 $('#start').addEventListener('click',()=>{goFullscreen();prepareRun('real')});
 /* v1.9.1 (móvil): mantener para volar en TODA el área (lienzo, botón «vuela» y en celular cualquier parte de la pantalla
    durante la carrera). multitáctil: vuela mientras quede al menos un dedo; se suelta con pointerup/cancel, touchend sin
-   dedos, blur, pestaña oculta o pausa → la escoba nunca queda pegada subiendo. */
+   dedos, blur, pestaña oculta o pausa → el cometa nunca queda pegado subiendo. */
 const boostBtn=$('#boost'),touchIds=new Set();let keyHeld=false;
 const UI_SEL='button:not(#boost),input,a,select,label,.story,.rotate,.overlay:not(.hidden)';
 function syncHeld(){setHeld(!pauseReason&&(keyHeld||touchIds.size>0))}
@@ -2175,9 +2096,9 @@ setInterval(()=>{if(data.day!==dateKey()&&state!=='playing'&&state!=='crashing')
 /* ---------- v1.9.1: historia de apertura (una vez por dispositivo; botón «historia» la vuelve a mostrar) ---------- */
 const STORY=[
   'es noche de hallogeekz y el tanuki morado de geekz se pone su disfraz.',
-  'pero un hechizo travieso lo convierte en una escoba encantada… ¡y sale volando!',
+  'un hechizo travieso lo convierte en un cometa… ¡y sale volando!',
   'cruza el bosque tenebroso, el cementerio y el infierno juntando kozmits ✦.',
-  'con 50 la escoba arde en un cometa morado.',
+  'con 50 su cometa arde en morado.',
   'al final espera la oscuridad: nadie ha sobrevivido a ella. ¿hasta dónde llegarás?'
 ];
 let storyOpen=false,storyT=0,storyTimer=0;
@@ -2206,7 +2127,7 @@ if(storyEl)storyEl.addEventListener('pointerdown',e=>{if(e.target===storyBtn)ret
 const storyOpenBtn=$('#storyBtn');if(storyOpenBtn)storyOpenBtn.addEventListener('click',()=>{Sound.init();Sound.ui();openStory();storyOpenBtn.blur()});
 
 ui();
-panel('KOZMIK <br>RUN','elige tu disfraz y conviértete en la escoba encantada. junta kozmits ✦ y cadenas enteras, esquiva lo que venga… y aguanta en la oscuridad todo lo que puedas.',
+panel('KOZMIK <br>RUN','elige tu disfraz y conviértete en un cometa. junta kozmits ✦ y cadenas enteras, esquiva lo que venga… y aguanta en la oscuridad todo lo que puedas.',
   'práctica · 7 seg',(BETA||data.lives>0)?'empezar carrera':'sin carreras por hoy','mantén «vuela», la barra espaciadora o cualquier parte del juego. la práctica es ilimitada; las carreras reales son 3 por día.');
 layout();loadProgress();
 if(!data.storySeen)openStory(); // v1.9.1: la historia se muestra sola la primera vez en este dispositivo

@@ -90,7 +90,7 @@ canvas.hero{width:104px;height:104px;right:-22px;top:-34px;animation:none;image-
 @media(max-width:650px){#overlay{background:linear-gradient(90deg,#100d2078,#100d2048 34%,#100d2055 66%,#100d20c8)} /* v1.9: se ve el idle de frente (sin pantalla negra) */
 canvas.hero{width:76px;height:76px;right:-8px;top:-42px}}
 
-/* v1.9.1: miniaturas más grandes para el arte original + historia de apertura */
+/* v1.9.1: miniaturas más grandes para el arte original + historia de apertura (v1.9.2: cometa css en vez de escoba) */
 .skin{width:56px;height:56px;padding:2px}
 @media(max-width:650px){.skin{width:46px;height:46px}}
 .storylink{margin-top:10px;min-height:36px;background:none;border:1px solid #ffffff22;color:#d8c8ff;font:700 12px/1 system-ui,sans-serif;padding:6px 12px;border-radius:999px;cursor:pointer}
@@ -104,8 +104,10 @@ canvas.hero{width:76px;height:76px;right:-8px;top:-42px}}
 .storytext .caret{color:#b386ff;animation:blinkc .8s steps(1) infinite}
 @keyframes blinkc{50%{opacity:0}}
 .storyskip{margin-top:10px;float:right;padding:9px 18px}
-.storybroom{width:192px;height:60px;margin:0 auto 6px;background:url(assets/broom_32bit.png) 0 0/768px 60px no-repeat;image-rendering:pixelated;animation:sbroom .55s steps(1) infinite,sbob 1.6s steps(4) infinite}
-@keyframes sbroom{0%{background-position:0 0}25%{background-position:-192px 0}50%{background-position:-384px 0}75%{background-position:-576px 0}}
+.storycomet{position:relative;width:200px;height:56px;margin:0 auto 6px;animation:sbob 1.6s steps(4) infinite}
+.storycomet::before{content:"";position:absolute;right:30px;top:17px;width:160px;height:22px;border-radius:50% 0 0 50%/50%;background:linear-gradient(90deg,#7a2cff00,#9a5cff55 35%,#ff9b42aa 75%,#ffd46a);clip-path:polygon(0 46%,100% 0,100% 100%,0 54%)}
+.storycomet i{position:absolute;right:8px;top:6px;width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 58% 45%,#fff 0 18%,#fff3c4 30%,#ffb32e 55%,#ff8a2a88 72%,#ff8a2a00 74%);box-shadow:0 0 18px #ffb32e99,0 0 34px #b06cff66;animation:scomet .5s steps(2) infinite}
+@keyframes scomet{50%{box-shadow:0 0 22px #ffd46acc,0 0 40px #b06cff88}}
 @keyframes sbob{0%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 @media(max-width:650px){.storytext{font-size:15px;min-height:170px}.storybox{padding:16px 18px 14px}}
 
@@ -152,9 +154,7 @@ body.compact .storylink{margin-top:6px}
 body.compact .boost{width:70px;height:70px;right:10px;bottom:10px}
 body.fit .story{padding:8px}
 body.fit .storybox{max-height:100%;overflow:auto;padding:12px 16px 10px}
-body.fit .storybroom{width:128px;height:40px;background-size:512px 40px;margin-bottom:2px}
-@keyframes sbroomS{0%{background-position:0 0}25%{background-position:-128px 0}50%{background-position:-256px 0}75%{background-position:-384px 0}}
-body.fit .storybroom{animation:sbroomS .55s steps(1) infinite}
+body.fit .storycomet{zoom:.68;margin-bottom:2px}
 body.fit .storytext{font-size:14px;min-height:0;line-height:1.35}
 body.fit .storytext p{margin:0 0 4px}
 body.fit .storyskip{margin-top:4px}
